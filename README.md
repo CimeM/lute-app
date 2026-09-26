@@ -25,8 +25,8 @@ A lightweight, local-first Progressive Web App (PWA) inspired by [Lute](https://
 
 Contributions are welcome! Please test your changes locally thoroughly before opening a Pull Request.
 
-### Reporting Issues
-Please use Github Issues.
+### Reporting Issues, requesting features
+Please turn to Github Issues, features.
 
 **Development**
 Clone this repo and enter the folder.
