@@ -1,0 +1,27 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Merriweather:ital,wght@0,300;0,400;0,700;1,300&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: 'Inter', sans-serif;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.font-serif-reader {
+  font-family: 'Merriweather', serif;
+}
+
+/* Word Status Color Tokens */
+.word-status-1 { background-color: rgba(254, 240, 138, 0.4); border-bottom: 2px solid #eab308; }
+.word-status-2 { background-color: rgba(254, 215, 170, 0.4); border-bottom: 2px solid #f97316; }
+.word-status-3 { background-color: rgba(187, 247, 208, 0.4); border-bottom: 2px solid #22c55e; }
+.word-status-4 { border-bottom: 1px dotted #9ca3af; }
+.word-status-99 { opacity: 0.55; }
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 4px; }
