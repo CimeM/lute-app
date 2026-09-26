@@ -1,0 +1,1287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Lute Light Reader</title>
+  <meta name="theme-color" content="#18181b" />
+  <meta name="description" content="Minimalist offline-first Lute PWA reader for language learners." />
+  
+  <!-- Web Application Manifest -->
+  <link rel="manifest" href="manifest.json" />
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- JSZip for standalone EPUB parsing -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+  <!-- React Dependencies -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Merriweather:ital,wght@0,300;0,400;0,700;1,300&display=swap');
+    
+    body {
+      font-family: 'Inter', sans-serif;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .font-serif-reader {
+      font-family: 'Merriweather', serif;
+    }
+
+    /* Word Status Color Tokens */
+    .word-status-1 { background-color: rgba(254, 240, 138, 0.4); border-bottom: 2px solid #eab308; } /* New: Yellow */
+    .word-status-2 { background-color: rgba(254, 215, 170, 0.4); border-bottom: 2px solid #f97316; } /* Learning 1: Orange */
+    .word-status-3 { background-color: rgba(187, 247, 208, 0.4); border-bottom: 2px solid #22c55e; } /* Learning 2: Light Green */
+    .word-status-4 { border-bottom: 1px dotted #9ca3af; }                                        /* Mastered: Clean */
+    .word-status-99 { opacity: 0.55; }                                                          /* Ignored */
+
+    /* Custom scrollbar */
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 4px; }
+  </style>
+</head>
+<body class="min-h-screen overflow-hidden flex flex-col transition-colors duration-200">
+  <div id="root" class="h-full w-full flex flex-col flex-1"></div>
+
+  <script type="text/babel">
+    const DB_NAME = 'LutePWA_DB';
+    const DB_VERSION = 1;
+
+    class LocalDB {
+      constructor() {
+        this.db = null;
+        this.useFallback = false;
+        this.memoryBooks = [];
+        this.memoryWords = {};
+        this.initPromise = null;
+      }
+
+      async ensureReady() {
+        if (!this.initPromise) {
+          this.initPromise = this.init();
+        }
+        return this.initPromise;
+      }
+
+      async init() {
+        return new Promise((resolve) => {
+          try {
+            if (!window.indexedDB) {
+              this.useFallback = true;
+              return resolve(this);
+            }
+
+            const request = indexedDB.open(DB_NAME, DB_VERSION);
+            
+            request.onupgradeneeded = (e) => {
+              const db = e.target.result;
+              if (!db.objectStoreNames.contains('books')) {
+                const bookStore = db.createObjectStore('books', { keyPath: 'id' });
+                bookStore.createIndex('addedAt', 'addedAt', { unique: false });
+              }
+              if (!db.objectStoreNames.contains('words')) {
+                const wordStore = db.createObjectStore('words', { keyPath: 'text' });
+                wordStore.createIndex('status', 'status', { unique: false });
+              }
+              if (!db.objectStoreNames.contains('settings')) {
+                db.createObjectStore('settings', { keyPath: 'key' });
+              }
+            };
+
+            request.onsuccess = (e) => {
+              this.db = e.target.result;
+              resolve(this);
+            };
+
+            request.onerror = (e) => {
+              console.warn("IndexedDB access denied/blocked. Falling back to storage fallback.", e?.target?.error);
+              this.useFallback = true;
+              resolve(this);
+            };
+          } catch (err) {
+            console.warn("IndexedDB initialization exception:", err);
+            this.useFallback = true;
+            resolve(this);
+          }
+        });
+      }
+
+      // --- BOOKS ---
+
+      async getAllBooks() {
+        await this.ensureReady();
+        if (this.useFallback || !this.db) {
+          return this.fallbackGetAllBooks();
+        }
+
+        return new Promise((resolve) => {
+          try {
+            const tx = this.db.transaction('books', 'readonly');
+            const store = tx.objectStore('books');
+            const req = store.getAll();
+
+            req.onsuccess = () => resolve(req.result || []);
+            req.onerror = () => resolve(this.fallbackGetAllBooks());
+          } catch (e) {
+            resolve(this.fallbackGetAllBooks());
+          }
+        });
+      }
+
+      async getBook(id) {
+        await this.ensureReady();
+        if (this.useFallback || !this.db) {
+          const books = this.fallbackGetAllBooks();
+          return books.find(b => Number(b.id) === Number(id)) || null;
+        }
+
+        return new Promise((resolve) => {
+          try {
+            const tx = this.db.transaction('books', 'readonly');
+            const store = tx.objectStore('books');
+            const req = store.get(Number(id));
+
+            req.onsuccess = () => resolve(req.result || null);
+            req.onerror = () => resolve(null);
+          } catch (e) {
+            resolve(null);
+          }
+        });
+      }
+
+      async saveBook(book) {
+        await this.ensureReady();
+        if (!book.id) book.id = Date.now();
+
+        if (this.useFallback || !this.db) {
+          this.fallbackSaveBook(book);
+          return book.id;
+        }
+
+        return new Promise((resolve) => {
+          try {
+            const tx = this.db.transaction('books', 'readwrite');
+            const store = tx.objectStore('books');
+            const req = store.put(book);
+
+            req.onsuccess = () => resolve(book.id);
+            req.onerror = () => {
+              this.fallbackSaveBook(book);
+              resolve(book.id);
+            };
+          } catch (e) {
+            this.fallbackSaveBook(book);
+            resolve(book.id);
+          }
+        });
+      }
+
+      async deleteBook(id) {
+        await this.ensureReady();
+        if (this.useFallback || !this.db) {
+          this.fallbackDeleteBook(id);
+          return;
+        }
+
+        return new Promise((resolve) => {
+          try {
+            const tx = this.db.transaction('books', 'readwrite');
+            const store = tx.objectStore('books');
+            const req = store.delete(Number(id));
+
+            req.onsuccess = () => {
+              this.fallbackDeleteBook(id);
+              resolve();
+            };
+            req.onerror = () => resolve();
+          } catch (e) {
+            resolve();
+          }
+        });
+      }
+
+      fallbackGetAllBooks() {
+        try {
+          const index = JSON.parse(localStorage.getItem('lute_book_index') || '[]');
+          const books = [];
+          for (const id of index) {
+            const item = localStorage.getItem(`lute_book_${id}`);
+            if (item) books.push(JSON.parse(item));
+          }
+          return books.length > 0 ? books : this.memoryBooks;
+        } catch(e) {
+          return this.memoryBooks;
+        }
+      }
+
+      fallbackSaveBook(book) {
+        const idx = this.memoryBooks.findIndex(b => b.id === book.id);
+        if (idx >= 0) this.memoryBooks[idx] = book;
+        else this.memoryBooks.push(book);
+
+        try {
+          const index = JSON.parse(localStorage.getItem('lute_book_index') || '[]');
+          if (!index.includes(book.id)) index.push(book.id);
+          localStorage.setItem('lute_book_index', JSON.stringify(index));
+          localStorage.setItem(`lute_book_${book.id}`, JSON.stringify(book));
+        } catch(e) {}
+      }
+
+      fallbackDeleteBook(id) {
+        this.memoryBooks = this.memoryBooks.filter(b => b.id !== Number(id));
+        try {
+          let index = JSON.parse(localStorage.getItem('lute_book_index') || '[]');
+          index = index.filter(i => Number(i) !== Number(id));
+          localStorage.setItem('lute_book_index', JSON.stringify(index));
+          localStorage.removeItem(`lute_book_${id}`);
+        } catch(e) {}
+      }
+
+      // --- WORDS ---
+
+      async getAllWords() {
+        await this.ensureReady();
+        if (this.useFallback || !this.db) {
+          try { return JSON.parse(localStorage.getItem('lute_words') || '{}'); } catch(e) { return this.memoryWords; }
+        }
+
+        return new Promise((resolve) => {
+          try {
+            const tx = this.db.transaction('words', 'readonly');
+            const store = tx.objectStore('words');
+            const req = store.getAll();
+
+            req.onsuccess = () => {
+              const map = {};
+              (req.result || []).forEach(w => map[w.text] = w);
+              resolve(map);
+            };
+            req.onerror = () => resolve({});
+          } catch (e) {
+            resolve({});
+          }
+        });
+      }
+
+      async saveWord(wordObj) {
+        await this.ensureReady();
+        this.memoryWords[wordObj.text] = wordObj;
+        try {
+          const words = JSON.parse(localStorage.getItem('lute_words') || '{}');
+          words[wordObj.text] = wordObj;
+          localStorage.setItem('lute_words', JSON.stringify(words));
+        } catch(e) {}
+
+        if (this.useFallback || !this.db) return;
+
+        return new Promise((resolve) => {
+          try {
+            const tx = this.db.transaction('words', 'readwrite');
+            const store = tx.objectStore('words');
+            const req = store.put(wordObj);
+            req.onsuccess = () => resolve();
+            req.onerror = () => resolve();
+          } catch (e) {
+            resolve();
+          }
+        });
+      }
+
+      // --- SETTINGS ---
+
+      async getSettings() {
+        await this.ensureReady();
+        const defaultSettings = {
+          key: 'user_config',
+          username: '',
+          wordsPerPage: 120,
+          readerTheme: 'system',
+          enableSync: false,
+          isLoggedIn: false,
+          syncApiUrl: 'https://api.example.com/lute/sync'
+        };
+
+        try {
+          const saved = localStorage.getItem('lute_settings');
+          if (saved) return { ...defaultSettings, ...JSON.parse(saved) };
+        } catch(e) {}
+
+        if (this.useFallback || !this.db) return defaultSettings;
+
+        return new Promise((resolve) => {
+          try {
+            const tx = this.db.transaction('settings', 'readonly');
+            const req = tx.objectStore('settings').get('user_config');
+            req.onsuccess = () => resolve(req.result ? { ...defaultSettings, ...req.result } : defaultSettings);
+            req.onerror = () => resolve(defaultSettings);
+          } catch (e) {
+            resolve(defaultSettings);
+          }
+        });
+      }
+
+      async saveSettings(settings) {
+        await this.ensureReady();
+        try { localStorage.setItem('lute_settings', JSON.stringify(settings)); } catch(e) {}
+        if (this.useFallback || !this.db) return;
+
+        return new Promise((resolve) => {
+          try {
+            const tx = this.db.transaction('settings', 'readwrite');
+            const req = tx.objectStore('settings').put({ key: 'user_config', ...settings });
+            req.onsuccess = () => resolve();
+            req.onerror = () => resolve();
+          } catch (e) {
+            resolve();
+          }
+        });
+      }
+    }
+
+    const db = new LocalDB();
+
+    const parseEPUBFile = async (file) => {
+      if (!window.JSZip) throw new Error("JSZip not loaded");
+      const zip = await window.JSZip.loadAsync(file);
+      
+      let textContent = "";
+      const htmlFiles = Object.keys(zip.files).filter(fileName => 
+        /\.(html|xhtml|htm)$/i.test(fileName)
+      );
+
+      for (const fileName of htmlFiles) {
+        const rawHtml = await zip.file(fileName).async("string");
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(rawHtml, 'text/html');
+        doc.querySelectorAll('script, style').forEach(el => el.remove());
+        const bodyText = doc.body ? doc.body.textContent : doc.documentElement.textContent;
+        if (bodyText.trim().length > 0) {
+          textContent += bodyText + "\n\n";
+        }
+      }
+      return textContent.replace(/\s+/g, ' ').trim();
+    };
+
+    const chunkTextIntoPages = (fullText, wordsPerPage) => {
+      if (!fullText) return [];
+      const tokens = fullText.match(/[\w\u00C0-\u024F]+|[^\w\u00C0-\u024F]+/g) || [];
+      
+      const pages = [];
+      let currentChunk = [];
+      let wordCounter = 0;
+
+      for (let token of tokens) {
+        currentChunk.push(token);
+        if (/[\w\u00C0-\u024F]/.test(token)) {
+          wordCounter++;
+        }
+
+        if (wordCounter >= wordsPerPage) {
+          pages.push(currentChunk.join(''));
+          currentChunk = [];
+          wordCounter = 0;
+        }
+      }
+
+      if (currentChunk.length > 0) {
+        pages.push(currentChunk.join(''));
+      }
+
+      return pages;
+    };
+
+    const { useState, useEffect, useRef, useMemo } = React;
+
+    function useResolvedTheme(themeSetting) {
+      const [systemIsDark, setSystemIsDark] = useState(
+        window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+      );
+
+      useEffect(() => {
+        if (!window.matchMedia) return;
+        const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+        const handleChange = (e) => setSystemIsDark(e.matches);
+        mediaQuery.addEventListener('change', handleChange);
+        return () => mediaQuery.removeEventListener('change', handleChange);
+      }, []);
+
+      if (themeSetting === 'system') {
+        return systemIsDark ? 'dark' : 'light';
+      }
+      return themeSetting || 'dark';
+    }
+
+    function getThemeStyles(theme) {
+      if (theme === 'light') {
+        return {
+          bodyBg: 'bg-slate-100 text-slate-900',
+          appBg: 'bg-slate-200',
+          containerBg: 'bg-white border-slate-200',
+          headerBg: 'bg-slate-50/90 border-slate-200 text-slate-800',
+          navBg: 'bg-slate-50 border-slate-200',
+          navActive: 'text-amber-600 bg-amber-100/80',
+          navInactive: 'text-slate-500 hover:text-slate-800',
+          cardBg: 'bg-slate-50 border-slate-200/80 text-slate-800',
+          cardHover: 'hover:border-slate-300',
+          textPrimary: 'text-slate-900',
+          textMuted: 'text-slate-500',
+          textSubtle: 'text-slate-400',
+          inputBg: 'bg-white border-slate-200 text-slate-800 focus:border-amber-500',
+          btnSecondary: 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200',
+          modalBg: 'bg-white/95 border-slate-200 text-slate-800',
+          statusBadge: 'bg-slate-200 text-slate-700 border-slate-300',
+        };
+      }
+      if (theme === 'sepia') {
+        return {
+          bodyBg: 'bg-amber-100 text-amber-950',
+          appBg: 'bg-amber-200/60',
+          containerBg: 'bg-[#fbf0d9] border-amber-200/80',
+          headerBg: 'bg-[#f4e4c1]/90 border-amber-200/80 text-amber-950',
+          navBg: 'bg-[#f4e4c1] border-amber-200/80',
+          navActive: 'text-amber-900 bg-amber-200/70',
+          navInactive: 'text-amber-800/60 hover:text-amber-950',
+          cardBg: 'bg-[#f4e4c1]/60 border-amber-200/80 text-amber-950',
+          cardHover: 'hover:border-amber-300',
+          textPrimary: 'text-amber-950',
+          textMuted: 'text-amber-800/70',
+          textSubtle: 'text-amber-800/50',
+          inputBg: 'bg-[#fbf0d9] border-amber-200 text-amber-950 focus:border-amber-600',
+          btnSecondary: 'bg-amber-200/50 hover:bg-amber-200 text-amber-950 border border-amber-200',
+          modalBg: 'bg-[#fbf0d9]/95 border-amber-200 text-amber-950',
+          statusBadge: 'bg-amber-200/60 text-amber-900 border-amber-300/60',
+        };
+      }
+      return {
+        bodyBg: 'bg-zinc-950 text-zinc-100',
+        appBg: 'bg-zinc-950',
+        containerBg: 'bg-zinc-900 border-zinc-800',
+        headerBg: 'bg-zinc-950/80 border-zinc-800 text-zinc-200',
+        navBg: 'bg-zinc-950 border-zinc-800',
+        navActive: 'text-amber-400 bg-zinc-800/60',
+        navInactive: 'text-zinc-500 hover:text-zinc-300',
+        cardBg: 'bg-zinc-950/60 border-zinc-800/80 text-zinc-200',
+        cardHover: 'hover:border-zinc-700',
+        textPrimary: 'text-zinc-100',
+        textMuted: 'text-zinc-400',
+        textSubtle: 'text-zinc-500',
+        inputBg: 'bg-zinc-900 border-zinc-800 text-zinc-200 focus:border-amber-500',
+        btnSecondary: 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300',
+        modalBg: 'bg-zinc-950/95 border-zinc-800 text-zinc-100',
+        statusBadge: 'bg-zinc-800 text-zinc-400 border-zinc-700',
+      };
+    }
+
+    function App() {
+      const [currentScreen, setCurrentScreen] = useState('books');
+      const [activeBookId, setActiveBookId] = useState(null);
+      const [settings, setSettings] = useState(null);
+      const [wordsDb, setWordsDb] = useState({});
+      const [deferredPrompt, setDeferredPrompt] = useState(null);
+      const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+      const activeThemeSetting = settings?.readerTheme || 'system';
+      const effectiveTheme = useResolvedTheme(activeThemeSetting);
+      const themeStyles = getThemeStyles(effectiveTheme);
+
+      useEffect(() => {
+        document.body.className = `min-h-screen overflow-hidden flex flex-col transition-colors duration-200 ${themeStyles.bodyBg}`;
+      }, [effectiveTheme]);
+
+      useEffect(() => {
+        let isMounted = true;
+
+        db.ensureReady()
+          .then(async () => {
+            if (!isMounted) return;
+            try {
+              const savedSettings = await db.getSettings();
+              if (isMounted) setSettings(savedSettings);
+              const savedWords = await db.getAllWords();
+              if (isMounted) setWordsDb(savedWords);
+            } catch (err) {
+              console.warn("Error loading database content:", err);
+            }
+          })
+          .catch((err) => {
+            console.warn("Unhandled DB error safely caught:", err);
+            if (isMounted) {
+              setSettings({
+                key: 'user_config',
+                username: '',
+                wordsPerPage: 120,
+                readerTheme: 'system',
+                enableSync: false,
+                isLoggedIn: false,
+                syncApiUrl: 'https://api.example.com/lute/sync'
+              });
+            }
+          });
+
+        const handleOnline = () => setIsOnline(true);
+        const handleOffline = () => setIsOnline(false);
+        const handleInstallPrompt = (e) => {
+          e.preventDefault();
+          setDeferredPrompt(e);
+        };
+
+        window.addEventListener('beforeinstallprompt', handleInstallPrompt);
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+
+        return () => {
+          isMounted = false;
+          window.removeEventListener('beforeinstallprompt', handleInstallPrompt);
+          window.removeEventListener('online', handleOnline);
+          window.removeEventListener('offline', handleOffline);
+        };
+      }, []);
+
+      const updateWordStatus = async (text, status, translation) => {
+        const wordObj = { text: text.toLowerCase(), status, translation, updatedAt: new Date().toISOString() };
+        const updated = { ...wordsDb, [wordObj.text]: wordObj };
+        setWordsDb(updated);
+        await db.saveWord(wordObj);
+      };
+
+      if (!settings) {
+        return (
+          <div className={`h-screen w-screen flex items-center justify-center font-mono text-xs ${themeStyles.bodyBg}`}>
+            Loading Lute Reader...
+          </div>
+        );
+      }
+
+      return (
+        <div className={`h-screen w-screen flex flex-col overflow-hidden transition-colors duration-200 ${themeStyles.appBg}`}>
+          <main className="flex-1 relative overflow-hidden">
+            {currentScreen === 'books' && (
+              <BookListScreen 
+                onOpenBook={(id) => { setActiveBookId(id); setCurrentScreen('reader'); }} 
+                themeStyles={themeStyles}
+              />
+            )}
+            
+            {currentScreen === 'reader' && activeBookId && (
+              <BookReaderScreen 
+                bookId={activeBookId} 
+                wordsDb={wordsDb} 
+                onUpdateWord={updateWordStatus}
+                settings={settings}
+                onBack={() => {
+                  setActiveBookId(null);
+                  setCurrentScreen('books');
+                }}
+                themeStyles={themeStyles}
+              />
+            )}
+
+            {currentScreen === 'settings' && (
+              <SettingsScreen 
+                settings={settings} 
+                onSaveSettings={async (updated) => {
+                  setSettings(updated);
+                  await db.saveSettings(updated);
+                }}
+                deferredPrompt={deferredPrompt}
+                onClearPrompt={() => setDeferredPrompt(null)}
+                themeStyles={themeStyles}
+              />
+            )}
+          </main>
+
+          {currentScreen !== 'reader' && (
+            <nav className={`h-14 border-t flex items-center justify-around z-20 px-2 transition-colors duration-200 ${themeStyles.navBg}`}>
+              <button 
+                onClick={() => setCurrentScreen('books')}
+                className={`flex flex-col items-center gap-1 py-1 px-4 rounded-lg transition ${currentScreen === 'books' ? themeStyles.navActive : themeStyles.navInactive}`}
+              >
+                <i data-lucide="book-open" className="w-5 h-5"></i>
+                <span className="text-[10px] font-medium">Library</span>
+              </button>
+
+              <button 
+                onClick={() => setCurrentScreen('settings')}
+                className={`flex flex-col items-center gap-1 py-1 px-4 rounded-lg transition ${currentScreen === 'settings' ? themeStyles.navActive : themeStyles.navInactive}`}
+              >
+                <i data-lucide="settings" className="w-5 h-5"></i>
+                <span className="text-[10px] font-medium">Settings</span>
+              </button>
+            </nav>
+          )}
+        </div>
+      );
+    }
+
+    function BookListScreen({ onOpenBook, themeStyles }) {
+      const [books, setBooks] = useState([]);
+      const [isLoading, setIsLoading] = useState(true);
+      const [isUploading, setIsUploading] = useState(false);
+      const fileInputRef = useRef(null);
+
+      const loadBooks = async () => {
+        setIsLoading(true);
+        try {
+          await db.ensureReady();
+          const list = await db.getAllBooks();
+          setBooks(list || []);
+        } catch (err) {
+          console.error("Error loading books:", err);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+
+      useEffect(() => {
+        loadBooks();
+      }, []);
+
+      useEffect(() => {
+        const timer = setTimeout(() => {
+          if (window.lucide && typeof window.lucide.createIcons === 'function') {
+            window.lucide.createIcons();
+          }
+        }, 50);
+        return () => clearTimeout(timer);
+      }, [books, isLoading]);
+
+      const handleFileUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        setIsUploading(true);
+        try {
+          let content = "";
+          const title = file.name.replace(/\.[^/.]+$/, "");
+
+          if (file.name.endsWith('.epub')) {
+            content = await parseEPUBFile(file);
+          } else {
+            content = await file.text();
+          }
+
+          if (!content.trim()) {
+            alert("Unable to extract text from file.");
+            setIsUploading(false);
+            return;
+          }
+
+          const newBook = {
+            id: Date.now(),
+            title: title || "Untitled Book",
+            content: content,
+            currentPage: 0,
+            addedAt: new Date().toISOString()
+          };
+
+          const id = await db.saveBook(newBook);
+          await loadBooks();
+          onOpenBook(id);
+        } catch (err) {
+          console.error(err);
+          alert("Error parsing file: " + err.message);
+        } finally {
+          setIsUploading(false);
+        }
+      };
+
+      const handleDeleteBook = async (e, id) => {
+        e.stopPropagation();
+        if (confirm("Delete this book from local storage?")) {
+          await db.deleteBook(id);
+          await loadBooks();
+        }
+      };
+
+      return (
+        <div className="h-full flex flex-col p-4 overflow-y-auto space-y-4">
+          <div className={`flex items-center justify-between border-b pb-3 ${themeStyles.cardBg.includes('amber') ? 'border-amber-200' : themeStyles.cardBg.includes('slate') ? 'border-slate-200' : 'border-zinc-800'}`}>
+            <div>
+              <h2 className={`text-lg font-bold ${themeStyles.textPrimary}`}>Library</h2>
+              <p className={`text-xs ${themeStyles.textMuted}`}>Offline database books</p>
+            </div>
+            
+            <button 
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+              className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-semibold px-3 py-1.5 rounded-lg text-xs transition"
+            >
+              <i data-lucide="upload" className="w-4 h-4"></i>
+              <span>{isUploading ? 'Parsing...' : 'Upload'}</span>
+            </button>
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              onChange={handleFileUpload} 
+              accept=".txt,.epub,.md" 
+              className="hidden" 
+            />
+          </div>
+
+          {books.length === 0 ? (
+            <div className={`flex-1 flex flex-col items-center justify-center text-center p-6 ${themeStyles.textMuted}`}>
+              <i data-lucide="book-marked" className="w-12 h-12 stroke-1 mb-2"></i>
+              <p className="text-sm">No books loaded in offline database.</p>
+              <p className={`text-xs mt-1 ${themeStyles.textSubtle}`}>Upload `.epub` or `.txt` to start reading.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-2.5">
+              {books.map(b => (
+                <div 
+                  key={b.id}
+                  onClick={() => onOpenBook(b.id)}
+                  className={`p-3.5 border rounded-xl cursor-pointer flex items-center justify-between transition group ${themeStyles.cardBg} ${themeStyles.cardHover}`}
+                >
+                  <div className="flex-1 pr-3 min-w-0">
+                    <h3 className={`font-medium text-sm truncate group-hover:text-amber-500 ${themeStyles.textPrimary}`}>{b.title}</h3>
+                    <div className={`flex items-center gap-2 mt-1 text-[11px] ${themeStyles.textMuted}`}>
+                      <span>{Math.round((b.content?.length || 0) / 5)} words</span>
+                      <span>•</span>
+                      <span>Page {(b.currentPage || 0) + 1}</span>
+                    </div>
+                  </div>
+
+                  <button 
+                    onClick={(e) => handleDeleteBook(e, b.id)}
+                    className={`p-1.5 ${themeStyles.textMuted} hover:text-red-400 rounded-md transition`}
+                    title="Delete book"
+                  >
+                    <i data-lucide="trash-2" className="w-4 h-4"></i>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function BookReaderScreen({ bookId, wordsDb, onUpdateWord, settings, onBack, themeStyles }) {
+      const [book, setBook] = useState(null);
+      const [currentPage, setCurrentPage] = useState(0);
+      const [selectedWord, setSelectedWord] = useState(null);
+      const [customTranslation, setCustomTranslation] = useState('');
+      const [popupPosition, setPopupPosition] = useState('bottom');
+      const [showToolbar, setShowToolbar] = useState(false);
+      const [fontSize, setFontSize] = useState(18);
+
+      useEffect(() => {
+        db.getBook(bookId).then(data => {
+          if (data) {
+            setBook(data);
+            setCurrentPage(data.currentPage || 0);
+          }
+        });
+      }, [bookId]);
+
+      useEffect(() => {
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+          window.lucide.createIcons();
+        }
+      }, [showToolbar, selectedWord]);
+
+      useEffect(() => {
+        const handleKeyDown = (e) => {
+          if (selectedWord) return;
+          if (e.key === 'ArrowRight' || e.key === 'Space') {
+            handleNextPage();
+          } else if (e.key === 'ArrowLeft') {
+            handlePrevPage();
+          }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+      }, [currentPage, selectedWord]);
+
+      const pages = useMemo(() => {
+        if (!book?.content) return [];
+        return chunkTextIntoPages(book.content, settings.wordsPerPage || 120);
+      }, [book?.content, settings.wordsPerPage]);
+
+      const saveProgress = async (newPageIdx) => {
+        setCurrentPage(newPageIdx);
+        if (book) {
+          const updatedBook = { ...book, currentPage: newPageIdx };
+          setBook(updatedBook);
+          await db.saveBook(updatedBook);
+        }
+      };
+
+      const handleNextPage = () => {
+        if (currentPage < pages.length - 1) saveProgress(currentPage + 1);
+      };
+
+      const handlePrevPage = () => {
+        if (currentPage > 0) saveProgress(currentPage - 1);
+      };
+
+      const handleCanvasClick = (e) => {
+        if (selectedWord) {
+          setSelectedWord(null);
+          return;
+        }
+
+        if (showToolbar) {
+          setShowToolbar(false);
+          return;
+        }
+
+        const rect = e.currentTarget.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        const clickY = e.clientY - rect.top;
+        const width = rect.width;
+        const height = rect.height;
+
+        if (clickY < height * 0.2 || clickY > height * 0.8) {
+          setShowToolbar(prev => !prev);
+          return;
+        }
+
+        if (clickX < width * 0.35) {
+          handlePrevPage();
+        } else {
+          handleNextPage();
+        }
+      };
+
+      const handleWordClick = (e, wordText) => {
+        e.stopPropagation();
+        const normalized = wordText.toLowerCase();
+        const existing = wordsDb[normalized] || { text: normalized, status: 1 };
+        
+        const wordRect = e.currentTarget.getBoundingClientRect();
+        const isLowerHalf = wordRect.top > window.innerHeight / 2;
+        setPopupPosition(isLowerHalf ? 'top' : 'bottom');
+
+        setSelectedWord(existing);
+        setCustomTranslation(existing.translation || '');
+      };
+
+      const handleSetWordStatus = (status) => {
+        if (!selectedWord) return;
+        onUpdateWord(selectedWord.text, status, customTranslation);
+        setSelectedWord(null);
+      };
+
+      const openExternalDict = (service) => {
+        if (!selectedWord) return;
+        const word = encodeURIComponent(selectedWord.text);
+        let url = '';
+        switch (service) {
+          case 'google':
+            url = `https://translate.google.com/?sl=auto&tl=en&text=${word}`;
+            break;
+          case 'wiktionary':
+            url = `https://en.wiktionary.org/wiki/${word}`;
+            break;
+          default:
+            url = `https://www.google.com/search?q=define+${word}`;
+        }
+        window.open(url, '_blank');
+      };
+
+      const renderFormattedPageText = (text) => {
+        if (!text) return null;
+        const tokens = text.match(/[\w\u00C0-\u024F]+|[^\w\u00C0-\u024F]+/g) || [];
+
+        return tokens.map((token, index) => {
+          const isWord = /[\w\u00C0-\u024F]/.test(token);
+          if (!isWord) return <span key={index}>{token}</span>;
+
+          const wordInfo = wordsDb[token.toLowerCase()];
+          const status = wordInfo ? wordInfo.status : 0;
+          let statusClass = "";
+          if (status === 1) statusClass = "word-status-1";
+          else if (status === 2) statusClass = "word-status-2";
+          else if (status === 3) statusClass = "word-status-3";
+          else if (status === 4) statusClass = "word-status-4";
+          else if (status === 99) statusClass = "word-status-99";
+
+          return (
+            <span
+              key={index}
+              onClick={(e) => handleWordClick(e, token)}
+              className={`cursor-pointer rounded px-0.5 transition-colors ${statusClass}`}
+            >
+              {token}
+            </span>
+          );
+        });
+      };
+
+      if (!book) {
+        return (
+          <div className="h-full flex items-center justify-center p-4">
+            <span className="text-xs font-mono">Loading Book...</span>
+          </div>
+        );
+      }
+
+      return (
+        <div className="h-full w-full flex flex-col relative select-none" onClick={handleCanvasClick}>
+          {/* Header Bar */}
+          <div className={`h-12 border-b flex items-center justify-between px-3 z-10 transition-transform ${showToolbar ? 'translate-y-0' : '-translate-y-12'} duration-200 absolute top-0 left-0 right-0 ${themeStyles.headerBg}`}>
+            <button onClick={onBack} className="p-1 rounded-md hover:bg-zinc-800/20">
+              <i data-lucide="arrow-left" className="w-5 h-5"></i>
+            </button>
+            <span className="text-xs font-medium truncate max-w-[200px]">{book.title}</span>
+            <div className="flex items-center gap-1">
+              <button onClick={(e) => { e.stopPropagation(); setFontSize(f => Math.max(14, f - 2)); }} className="px-2 py-1 text-xs">A-</button>
+              <button onClick={(e) => { e.stopPropagation(); setFontSize(f => Math.min(28, f + 2)); }} className="px-2 py-1 text-xs font-bold">A+</button>
+            </div>
+          </div>
+
+          {/* Text Canvas */}
+          <div className="flex-1 p-6 overflow-y-auto font-serif-reader leading-relaxed tracking-wide" style={{ fontSize: `${fontSize}px` }}>
+            {renderFormattedPageText(pages[currentPage] || "End of book.")}
+          </div>
+
+          {/* Footer Bar */}
+          <div className={`h-10 border-t flex items-center justify-between px-4 text-xs font-mono transition-transform ${showToolbar ? 'translate-y-0' : 'translate-y-10'} duration-200 absolute bottom-0 left-0 right-0 ${themeStyles.headerBg}`}>
+            <button onClick={(e) => { e.stopPropagation(); handlePrevPage(); }} disabled={currentPage === 0}>Prev</button>
+            <span>{currentPage + 1} / {pages.length || 1}</span>
+            <button onClick={(e) => { e.stopPropagation(); handleNextPage(); }} disabled={currentPage >= pages.length - 1}>Next</button>
+          </div>
+
+          {/* Word Inspector Modal Popup */}
+          {selectedWord && (
+            <div 
+              onClick={(e) => e.stopPropagation()} 
+              className={`absolute left-4 right-4 border shadow-2xl rounded-2xl p-4 z-30 flex flex-col gap-3 transition-all ${popupPosition === 'top' ? 'top-14' : 'bottom-14'} ${themeStyles.modalBg}`}
+            >
+              <div className="flex items-center justify-between border-b pb-2">
+                <span className="font-bold text-lg capitalize">{selectedWord.text}</span>
+                <div className="flex gap-2">
+                  <button onClick={() => openExternalDict('google')} className="text-xs text-amber-500 hover:underline">Translate</button>
+                  <button onClick={() => openExternalDict('wiktionary')} className="text-xs text-amber-500 hover:underline">Wiki</button>
+                </div>
+              </div>
+
+              <input 
+                type="text" 
+                placeholder="Add translation..."
+                value={customTranslation}
+                onChange={(e) => setCustomTranslation(e.target.value)}
+                className={`w-full p-2 border rounded-lg text-sm ${themeStyles.inputBg}`}
+              />
+
+              <div className="grid grid-cols-5 gap-1.5 pt-1">
+                <button onClick={() => handleSetWordStatus(1)} className="py-2 rounded font-semibold text-xs bg-yellow-500/20 text-yellow-600 border border-yellow-500/50">1</button>
+                <button onClick={() => handleSetWordStatus(2)} className="py-2 rounded font-semibold text-xs bg-orange-500/20 text-orange-600 border border-orange-500/50">2</button>
+                <button onClick={() => handleSetWordStatus(3)} className="py-2 rounded font-semibold text-xs bg-green-500/20 text-green-600 border border-green-500/50">3</button>
+                <button onClick={() => handleSetWordStatus(4)} className="py-2 rounded font-semibold text-xs bg-blue-500/20 text-blue-600 border border-blue-500/50">4</button>
+                <button onClick={() => handleSetWordStatus(99)} className="py-2 rounded font-semibold text-xs bg-zinc-500/20 text-zinc-400 border border-zinc-500/50">Ign</button>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function SettingsScreen({ settings, onSaveSettings, deferredPrompt, onClearPrompt, themeStyles }) {
+      const [showLoginModal, setShowLoginModal] = useState(false);
+      const [username, setUsername] = useState(settings?.username || '');
+      const [password, setPassword] = useState('');
+      const [apiUrl, setApiUrl] = useState(settings?.syncApiUrl || 'https://api.example.com/lute/sync');
+      const [isSyncing, setIsSyncing] = useState(false);
+      const [syncMessage, setSyncMessage] = useState('');
+
+      useEffect(() => {
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+          window.lucide.createIcons();
+        }
+      }, [showLoginModal]);
+
+      const handleSaveTheme = (theme) => {
+        onSaveSettings({ ...settings, readerTheme: theme });
+      };
+
+      const handleWordsPerPageChange = (val) => {
+        onSaveSettings({ ...settings, wordsPerPage: Number(val) });
+      };
+
+      const handleToggleSync = (enabled) => {
+        onSaveSettings({ ...settings, enableSync: enabled });
+      };
+
+      const handleLogin = (e) => {
+        e.preventDefault();
+        if (!username.trim()) return alert("Username required");
+        onSaveSettings({
+          ...settings,
+          username: username.trim(),
+          isLoggedIn: true,
+          syncApiUrl: apiUrl.trim()
+        });
+        setShowLoginModal(false);
+      };
+
+      const handleLogout = () => {
+        onSaveSettings({
+          ...settings,
+          isLoggedIn: false,
+          enableSync: false
+        });
+      };
+
+      const triggerManualSync = async () => {
+        setIsSyncing(true);
+        setSyncMessage('Connecting to backend database...');
+        try {
+          const allWords = await db.getAllWords();
+          const allBooks = await db.getAllBooks();
+
+          // Simulating remote sync API payload
+          const payload = {
+            username: settings.username,
+            words: Object.values(allWords),
+            books: allBooks.map(b => ({ id: b.id, title: b.title, progress: b.currentPage }))
+          };
+
+          const response = await fetch(settings.syncApiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          }).catch(() => null);
+
+          if (response && response.ok) {
+            setSyncMessage('Database synced successfully!');
+          } else {
+            setSyncMessage('Sync payload packaged locally (API endpoint mock response).');
+          }
+        } catch (err) {
+          setSyncMessage('Sync failed: Network or endpoint error.');
+        } finally {
+          setIsSyncing(false);
+        }
+      };
+
+      const handleInstallPWA = async () => {
+        if (!deferredPrompt) return;
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+          if (onClearPrompt) onClearPrompt();
+        }
+      };
+
+      return (
+        <div className="h-full flex flex-col p-4 overflow-y-auto space-y-6">
+          <div className="border-b pb-3 border-zinc-800">
+            <h2 className={`text-lg font-bold ${themeStyles.textPrimary}`}>Settings</h2>
+            <p className={`text-xs ${themeStyles.textMuted}`}>Preferences & Backend Synchronization</p>
+          </div>
+
+          {/* PWA Installation Prompt Card */}
+          {deferredPrompt && (
+            <div className={`p-4 border rounded-xl flex items-center justify-between ${themeStyles.cardBg} border-amber-500/50`}>
+              <div>
+                <h3 className="font-semibold text-sm text-amber-500 flex items-center gap-2">
+                  <i data-lucide="download" className="w-4 h-4"></i>
+                  Install Lute PWA App
+                </h3>
+                <p className={`text-xs mt-0.5 ${themeStyles.textMuted}`}>Add to home screen for full offline experience.</p>
+              </div>
+              <button 
+                onClick={handleInstallPWA}
+                className="bg-amber-500 hover:bg-amber-400 text-zinc-950 px-3 py-1.5 rounded-lg text-xs font-bold transition"
+              >
+                Install
+              </button>
+            </div>
+          )}
+
+          {/* User Account & Database Sync */}
+          <div className={`p-4 border rounded-xl space-y-3 ${themeStyles.cardBg}`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <i data-lucide="user" className="w-4 h-4 text-amber-500"></i>
+                <span className={`font-semibold text-sm ${themeStyles.textPrimary}`}>Database Account & Sync</span>
+              </div>
+              {settings.isLoggedIn ? (
+                <span className="text-[10px] bg-green-500/20 text-green-400 border border-green-500/30 px-2 py-0.5 rounded-full font-mono">
+                  Connected
+                </span>
+              ) : (
+                <span className="text-[10px] bg-zinc-800 text-zinc-400 border border-zinc-700 px-2 py-0.5 rounded-full font-mono">
+                  Offline
+                </span>
+              )}
+            </div>
+
+            {settings.isLoggedIn ? (
+              <div className="space-y-3 pt-2">
+                <div className="flex justify-between items-center text-xs">
+                  <span className={themeStyles.textMuted}>Account Name:</span>
+                  <span className={`font-medium ${themeStyles.textPrimary}`}>{settings.username}</span>
+                </div>
+                
+                <div className="flex justify-between items-center text-xs">
+                  <span className={themeStyles.textMuted}>Automatic Sync:</span>
+                  <input 
+                    type="checkbox" 
+                    checked={!!settings.enableSync}
+                    onChange={(e) => handleToggleSync(e.target.checked)}
+                    className="accent-amber-500 rounded cursor-pointer"
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button 
+                    onClick={triggerManualSync}
+                    disabled={isSyncing}
+                    className="flex-1 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold py-1.5 rounded-lg text-xs transition flex items-center justify-center gap-1.5"
+                  >
+                    <i data-lucide="refresh-cw" className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`}></i>
+                    <span>{isSyncing ? 'Syncing...' : 'Sync Database Now'}</span>
+                  </button>
+
+                  <button 
+                    onClick={handleLogout}
+                    className={`px-3 py-1.5 rounded-lg text-xs ${themeStyles.btnSecondary} hover:text-red-400 transition`}
+                  >
+                    Disconnect
+                  </button>
+                </div>
+
+                {syncMessage && (
+                  <p className="text-[11px] font-mono text-amber-500/90 pt-1">{syncMessage}</p>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-2 pt-2">
+                <p className={`text-xs ${themeStyles.textMuted}`}>
+                  Log in to sync your terms, books, and reading progress with your backend API database.
+                </p>
+                <button 
+                  onClick={() => setShowLoginModal(true)}
+                  className="w-full bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold py-2 rounded-lg text-xs transition flex items-center justify-center gap-1.5"
+                >
+                  <i data-lucide="log-in" className="w-4 h-4"></i>
+                  <span>Login / Sync Configuration</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Display & Reader Settings */}
+          <div className={`p-4 border rounded-xl space-y-4 ${themeStyles.cardBg}`}>
+            <h3 className={`font-semibold text-sm ${themeStyles.textPrimary}`}>Reader Preferences</h3>
+
+            <div className="space-y-1.5">
+              <label className={`text-xs ${themeStyles.textMuted}`}>Reader Theme</label>
+              <div className="grid grid-cols-3 gap-2">
+                {['system', 'dark', 'light', 'sepia'].map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => handleSaveTheme(t)}
+                    className={`py-1.5 rounded-lg text-xs font-medium capitalize border transition ${
+                      (settings.readerTheme || 'system') === t 
+                        ? 'border-amber-500 bg-amber-500/10 text-amber-500' 
+                        : `${themeStyles.btnSecondary}`
+                    }`}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex justify-between items-center text-xs">
+                <label className={themeStyles.textMuted}>Words per Page</label>
+                <span className={`font-mono ${themeStyles.textPrimary}`}>{settings.wordsPerPage || 120}</span>
+              </div>
+              <input 
+                type="range" 
+                min="50" 
+                max="300" 
+                step="10"
+                value={settings.wordsPerPage || 120}
+                onChange={(e) => handleWordsPerPageChange(e.target.value)}
+                className="w-full accent-amber-500"
+              />
+            </div>
+          </div>
+
+          {/* Login Modal */}
+          {showLoginModal && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <div className={`w-full max-w-xs border rounded-2xl p-5 space-y-4 shadow-2xl ${themeStyles.modalBg}`}>
+                <div className="flex justify-between items-center border-b pb-2">
+                  <h3 className="font-bold text-sm">Database Sync Login</h3>
+                  <button onClick={() => setShowLoginModal(false)}>
+                    <i data-lucide="x" className="w-4 h-4"></i>
+                  </button>
+                </div>
+
+                <form onSubmit={handleLogin} className="space-y-3">
+                  <div>
+                    <label className="text-[11px] block mb-1">API Endpoint URL</label>
+                    <input 
+                      type="url" 
+                      required
+                      value={apiUrl}
+                      onChange={(e) => setApiUrl(e.target.value)}
+                      className={`w-full p-2 text-xs border rounded-lg ${themeStyles.inputBg}`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] block mb-1">Username / Account Key</label>
+                    <input 
+                      type="text" 
+                      required
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      className={`w-full p-2 text-xs border rounded-lg ${themeStyles.inputBg}`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] block mb-1">Password / API Key</label>
+                    <input 
+                      type="password" 
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className={`w-full p-2 text-xs border rounded-lg ${themeStyles.inputBg}`}
+                    />
+                  </div>
+
+                  <button 
+                    type="submit"
+                    className="w-full bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold py-2 rounded-lg text-xs transition mt-2"
+                  >
+                    Connect & Save
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+
+    // Service Worker Registration for PWA support
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch((err) => {
+          console.warn('Service worker registration failed:', err);
+        });
+      });
+    }
+  </script>
+</body>
+</html>
