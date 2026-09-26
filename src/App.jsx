@@ -78,6 +78,35 @@ export default function App() {
     await db.saveWord(wordObj);
   };
 
+  const exportDatabase = async () => {
+    try {
+      await db.ensureReady();
+      const [books, words, savedSettings] = await Promise.all([
+        db.getAllBooks(),
+        db.getAllWords(),
+        db.getSettings(),
+      ]);
+      const backup = {
+        format: 'lute-backup',
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        books,
+        words,
+        settings: savedSettings,
+      };
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `lute-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) {
+      console.error('Failed to export database:', error);
+      alert('Could not export the database. Please try again.');
+    }
+  };
+
   if (!settings) {
     return (
       <div className={`h-dvh w-screen flex items-center justify-center font-mono text-xs ${themeStyles.bodyBg}`}>
@@ -93,6 +122,7 @@ export default function App() {
           <BookListScreen 
             onOpenBook={(id) => { setActiveBookId(id); setCurrentScreen('reader'); }} 
             themeStyles={themeStyles}
+            wordsDb={wordsDb}
           />
         )}
         
@@ -113,6 +143,7 @@ export default function App() {
         {currentScreen === 'settings' && (
           <SettingsScreen 
             settings={settings} 
+            onExport={exportDatabase}
             onSaveSettings={async (updated) => {
               setSettings(updated);
               await db.saveSettings(updated);

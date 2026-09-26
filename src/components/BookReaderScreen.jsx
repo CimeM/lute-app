@@ -13,6 +13,8 @@ export function BookReaderScreen({ bookId, wordsDb, onUpdateWord, settings, onBa
   const totalPages = Math.max(1, pages.length);
   const [selectedWord, setSelectedWord] = useState(null);
   const [customTranslation, setCustomTranslation] = useState('');
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [translationError, setTranslationError] = useState('');
   const [popupPosition, setPopupPosition] = useState('bottom');
   const [fontSize, setFontSize] = useState(18);
 
@@ -49,6 +51,59 @@ export function BookReaderScreen({ bookId, wordsDb, onUpdateWord, settings, onBa
       setCurrentPage(Math.max(0, totalPages - 1));
     }
   }, [totalPages]);
+
+  useEffect(() => {
+    if (!selectedWord || selectedWord.translation) {
+      setIsTranslating(false);
+      setTranslationError('');
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => {
+      setIsTranslating(false);
+      setTranslationError('Automatic translation timed out. Enter an English translation.');
+      controller.abort();
+    }, 8000);
+    setCustomTranslation('');
+    setIsTranslating(true);
+    setTranslationError('');
+
+    const params = new URLSearchParams({
+      client: 'gtx',
+      sl: 'auto',
+      tl: 'en',
+      dt: 't',
+      q: selectedWord.text,
+    });
+
+    fetch(`https://translate.googleapis.com/translate_a/single?${params}`, { signal: controller.signal })
+      .then((response) => {
+        if (!response.ok) throw new Error('Translation service unavailable.');
+        return response.json();
+      })
+      .then((result) => {
+        const translation = Array.isArray(result?.[0])
+          ? result[0].map((part) => part[0] || '').join('').trim()
+          : '';
+        if (!translation) throw new Error('No English translation found.');
+        setCustomTranslation(translation);
+      })
+      .catch((error) => {
+        if (error.name !== 'AbortError') {
+          setTranslationError('Automatic translation unavailable. Enter an English translation.');
+        }
+      })
+      .finally(() => {
+        clearTimeout(timeout);
+        if (!controller.signal.aborted) setIsTranslating(false);
+      });
+
+    return () => {
+      clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [selectedWord]);
 
   // Handle Keyboard Navigation
   useEffect(() => {
@@ -103,7 +158,7 @@ export function BookReaderScreen({ bookId, wordsDb, onUpdateWord, settings, onBa
   const handleWordClick = (e, wordText) => {
     e.stopPropagation();
     const normalized = wordText.toLowerCase();
-    const existing = wordsDb[normalized] || { text: normalized, status: 1 };
+    const existing = wordsDb[normalized] || { text: normalized, status: 0 };
     
     const wordRect = e.currentTarget.getBoundingClientRect();
     const isLowerHalf = wordRect.top > window.innerHeight / 2;
@@ -123,17 +178,17 @@ export function BookReaderScreen({ bookId, wordsDb, onUpdateWord, settings, onBa
   const renderedContent = useMemo(() => {
     const pageText = pages[currentPage] || '';
     if (!pageText) return null;
-    const tokens = pageText.match(/[\w\u00C0-\u024F]+|[^\w\u00C0-\u024F]+/g) || [];
+    const tokens = pageText.match(/[\p{L}\p{M}\p{N}]+|[^\p{L}\p{M}\p{N}]+/gu) || [];
 
     return tokens.map((token, index) => {
-      const isWord = /[\w\u00C0-\u024F]/.test(token);
+      const isWord = /[\p{L}\p{M}\p{N}]/u.test(token);
       if (!isWord) {
         return <span key={index}>{token}</span>;
       }
 
       const normalized = token.toLowerCase();
       const wordObj = wordsDb[normalized];
-      const statusClass = wordObj ? `word-status-${wordObj.status}` : 'word-status-1';
+      const statusClass = wordObj?.status ? `word-status-${wordObj.status}` : '';
 
       return (
         <span
@@ -226,9 +281,13 @@ export function BookReaderScreen({ bookId, wordsDb, onUpdateWord, settings, onBa
             type="text" 
             value={customTranslation} 
             onChange={(e) => setCustomTranslation(e.target.value)}
-            placeholder="Enter translation..." 
+            placeholder={isTranslating ? 'Translating to English...' : 'Enter English translation...'}
+            aria-label="English translation"
             className={`w-full text-xs p-2 rounded-md mb-3 border ${themeStyles.inputBg}`}
           />
+          <p className="text-[10px] text-zinc-500 mb-3" aria-live="polite">
+            {isTranslating ? 'Looking up an English translation...' : translationError || 'English translation'}
+          </p>
 
           <div className="grid grid-cols-5 gap-1.5">
             {[1, 2, 3, 4, 99].map(st => (
