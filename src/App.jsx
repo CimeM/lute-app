@@ -19,7 +19,7 @@ export default function App() {
   const themeStyles = getThemeStyles(effectiveTheme);
 
   useEffect(() => {
-    document.body.className = `min-h-screen overflow-hidden flex flex-col transition-colors duration-200 ${themeStyles.bodyBg}`;
+    document.body.className = `h-dvh overflow-hidden flex flex-col transition-colors duration-200 ${themeStyles.bodyBg}`;
   }, [effectiveTheme, themeStyles.bodyBg]);
 
   useEffect(() => {
@@ -80,15 +80,15 @@ export default function App() {
 
   if (!settings) {
     return (
-      <div className={`h-screen w-screen flex items-center justify-center font-mono text-xs ${themeStyles.bodyBg}`}>
+      <div className={`h-dvh w-screen flex items-center justify-center font-mono text-xs ${themeStyles.bodyBg}`}>
         Loading Lute...
       </div>
     );
   }
 
   return (
-    <div className={`h-screen w-screen flex flex-col overflow-hidden transition-colors duration-200 ${themeStyles.appBg}`}>
-      <main className="flex-1 relative overflow-hidden">
+    <div className={`h-dvh w-screen flex flex-col overflow-hidden transition-colors duration-200 ${themeStyles.appBg}`}>
+      <main className="flex-1 min-h-0 relative overflow-hidden">
         {currentScreen === 'books' && (
           <BookListScreen 
             onOpenBook={(id) => { setActiveBookId(id); setCurrentScreen('reader'); }} 
@@ -125,7 +125,7 @@ export default function App() {
       </main>
 
       {currentScreen !== 'reader' && (
-        <nav className={`h-14 border-t flex items-center justify-around z-20 px-2 transition-colors duration-200 ${themeStyles.navBg}`}>
+        <nav className={`bottom-nav border-t flex items-center justify-around z-20 px-2 transition-colors duration-200 ${themeStyles.navBg}`}>
           <button 
             onClick={() => setCurrentScreen('books')}
             className={`flex flex-col items-center gap-1 py-1 px-4 rounded-lg transition ${currentScreen === 'books' ? themeStyles.navActive : themeStyles.navInactive}`}

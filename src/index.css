@@ -12,6 +12,19 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+html,
+body,
+#root {
+  height: 100%;
+}
+
+.bottom-nav {
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  height: calc(3.5rem + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
 .font-serif-reader {
   font-family: 'Merriweather', serif;
 }
