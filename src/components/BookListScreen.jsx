@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Upload, BookMarked, Trash2 } from 'lucide-react';
 import { db } from '../db/LocalDB';
 import { parseEPUBFile } from '../utils/epubParser';
+import { seedDefaultBooks } from '../utils/defaultBooks';
 
 export function BookListScreen({ onOpenBook, themeStyles }) {
   const [books, setBooks] = useState([]);
@@ -13,6 +14,7 @@ export function BookListScreen({ onOpenBook, themeStyles }) {
     setIsLoading(true);
     try {
       await db.ensureReady();
+      await seedDefaultBooks(db);
       const list = await db.getAllBooks();
       setBooks(list || []);
     } catch (err) {

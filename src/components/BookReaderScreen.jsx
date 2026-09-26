@@ -1,45 +1,47 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { ArrowLeft, X, Minus, Plus } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { ArrowLeft, X } from 'lucide-react';
 import { db } from '../db/LocalDB';
+import { chunkTextIntoPagesAsync } from '../utils/epubParser';
 
 export function BookReaderScreen({ bookId, wordsDb, onUpdateWord, settings, onBack, themeStyles }) {
   const [book, setBook] = useState(null);
+  const [pages, setPages] = useState([]);
+  const [isPreparing, setIsPreparing] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [loadError, setLoadError] = useState('');
   const [currentPage, setCurrentPage] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
+  const totalPages = Math.max(1, pages.length);
   const [selectedWord, setSelectedWord] = useState(null);
   const [customTranslation, setCustomTranslation] = useState('');
   const [popupPosition, setPopupPosition] = useState('bottom');
   const [fontSize, setFontSize] = useState(18);
 
-  const containerRef = useRef(null);
-  const contentRef = useRef(null);
-
   useEffect(() => {
-    db.getBook(bookId).then(data => {
-      if (data) {
-        setBook(data);
-        setCurrentPage(data.currentPage || 0);
-      }
+    let cancelled = false;
+    setIsPreparing(true);
+    setLoadingProgress(0);
+    setLoadError('');
+    setBook(null);
+    setPages([]);
+
+    db.getBook(bookId).then(async (data) => {
+      if (!data) throw new Error('This book could not be found in the local library.');
+      if (cancelled) return;
+
+      setBook(data);
+      setCurrentPage(data.currentPage || 0);
+      const preparedPages = await chunkTextIntoPagesAsync(data.content || '', 300, (progress) => {
+        if (!cancelled) setLoadingProgress(progress);
+      });
+      if (!cancelled) setPages(preparedPages);
+    }).catch((error) => {
+      if (!cancelled) setLoadError(error.message || 'Unable to load this book.');
+    }).finally(() => {
+      if (!cancelled) setIsPreparing(false);
     });
+
+    return () => { cancelled = true; };
   }, [bookId]);
-
-  // Recalculate total pages based on scrollWidth vs clientWidth
-  const updatePageCount = () => {
-    if (contentRef.current && containerRef.current) {
-      const scrollWidth = contentRef.current.scrollWidth;
-      const clientWidth = containerRef.current.clientWidth;
-      if (clientWidth > 0) {
-        const pages = Math.max(1, Math.round(scrollWidth / clientWidth));
-        setTotalPages(pages);
-      }
-    }
-  };
-
-  useEffect(() => {
-    updatePageCount();
-    window.addEventListener('resize', updatePageCount);
-    return () => window.removeEventListener('resize', updatePageCount);
-  }, [book?.content, fontSize]);
 
   // Make sure page is within bounds when total pages change
   useEffect(() => {
@@ -119,8 +121,9 @@ export function BookReaderScreen({ bookId, wordsDb, onUpdateWord, settings, onBa
 
   // Process text into clickable tokens
   const renderedContent = useMemo(() => {
-    if (!book?.content) return null;
-    const tokens = book.content.match(/[\w\u00C0-\u024F]+|[^\w\u00C0-\u024F]+/g) || [];
+    const pageText = pages[currentPage] || '';
+    if (!pageText) return null;
+    const tokens = pageText.match(/[\w\u00C0-\u024F]+|[^\w\u00C0-\u024F]+/g) || [];
 
     return tokens.map((token, index) => {
       const isWord = /[\w\u00C0-\u024F]/.test(token);
@@ -142,9 +145,22 @@ export function BookReaderScreen({ bookId, wordsDb, onUpdateWord, settings, onBa
         </span>
       );
     });
-  }, [book?.content, wordsDb]);
+  }, [pages, currentPage, wordsDb]);
 
-  if (!book) return <div className="p-4">Loading book...</div>;
+  if (isPreparing) {
+    return <div className="p-4">Preparing book... {loadingProgress}%</div>;
+  }
+
+  if (loadError || !book) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center gap-4 p-6 text-center">
+        <p>{loadError || 'Unable to load this book.'}</p>
+        <button onClick={onBack} className="flex items-center gap-2 rounded-md px-3 py-2 hover:bg-zinc-800/10">
+          <ArrowLeft className="w-4 h-4" /> Back to library
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col relative select-none overflow-hidden">
@@ -187,23 +203,11 @@ export function BookReaderScreen({ bookId, wordsDb, onUpdateWord, settings, onBa
 
       {/* Column Reader View */}
       <div 
-        ref={containerRef}
         onClick={handleCanvasClick}
         className="flex-1 p-6 overflow-hidden font-serif-reader cursor-pointer relative"
         style={{ fontSize: `${fontSize}px` }}
       >
-        <div
-          ref={contentRef}
-          className="h-full transition-transform duration-300 ease-out whitespace-pre-wrap leading-relaxed"
-          style={{
-            columnWidth: '100vw',
-            columnGap: '3rem',
-            columnFill: 'auto',
-            height: '100%',
-            transform: `translateX(calc(-${currentPage} * (100% + 3rem)))`,
-          }}
-          onLoad={updatePageCount}
-        >
+        <div className="h-full whitespace-pre-wrap leading-relaxed">
           {renderedContent}
         </div>
       </div>

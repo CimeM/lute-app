@@ -1,3 +1,5 @@
+import JSZip from "jszip";
+
 /**
  * Standalone EPUB Parser for Lute Light Reader
  * Parses EPUB2 / EPUB3 containers using JSZip and DOMParser.
@@ -9,11 +11,7 @@
  * @returns {Promise<string>} The extracted text content from all spine documents.
  */
 export async function parseEPUBFile(file) {
-  if (!window.JSZip) {
-    throw new Error("JSZip dependency is missing. Ensure JSZip is loaded before calling parseEPUBFile.");
-  }
-
-  const zip = await window.JSZip.loadAsync(file);
+  const zip = await JSZip.loadAsync(file);
 
   // 1. Locate rootfile path inside META-INF/container.xml
   const containerFile = zip.file("META-INF/container.xml");
@@ -122,5 +120,38 @@ export function chunkTextIntoPages(fullText, wordsPerPage = 120) {
     pages.push(currentChunk.join(""));
   }
 
+  return pages;
+}
+
+export async function chunkTextIntoPagesAsync(fullText, wordsPerPage = 300, onProgress = () => {}) {
+  if (!fullText) return [];
+
+  const pages = [];
+  let currentChunk = [];
+  let wordCounter = 0;
+  let tokenCount = 0;
+  const tokens = /[\w\u00C0-\u024F]+|[^\w\u00C0-\u024F]+/g;
+  let match;
+
+  while ((match = tokens.exec(fullText)) !== null) {
+    const token = match[0];
+    currentChunk.push(token);
+    if (/[\w\u00C0-\u024F]/.test(token)) wordCounter++;
+
+    if (wordCounter >= wordsPerPage) {
+      pages.push(currentChunk.join(""));
+      currentChunk = [];
+      wordCounter = 0;
+    }
+
+    tokenCount++;
+    if (tokenCount % 10000 === 0) {
+      onProgress(Math.min(99, Math.round((tokens.lastIndex / fullText.length) * 100)));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+  }
+
+  if (currentChunk.length > 0) pages.push(currentChunk.join(""));
+  onProgress(100);
   return pages;
 }
