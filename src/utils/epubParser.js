@@ -97,7 +97,7 @@ export async function parseEPUBFile(file) {
  */
 export function chunkTextIntoPages(fullText, wordsPerPage = 120) {
   if (!fullText) return [];
-  const tokens = fullText.match(/[\w\u00C0-\u024F]+|[^\w\u00C0-\u024F]+/g) || [];
+  const tokens = fullText.match(/[\p{L}\p{M}\p{N}]+|[^\p{L}\p{M}\p{N}]+/gu) || [];
 
   const pages = [];
   let currentChunk = [];
@@ -105,7 +105,7 @@ export function chunkTextIntoPages(fullText, wordsPerPage = 120) {
 
   for (const token of tokens) {
     currentChunk.push(token);
-    if (/[\w\u00C0-\u024F]/.test(token)) {
+    if (/[\p{L}\p{M}\p{N}]/u.test(token)) {
       wordCounter++;
     }
 
@@ -123,20 +123,20 @@ export function chunkTextIntoPages(fullText, wordsPerPage = 120) {
   return pages;
 }
 
-export async function chunkTextIntoPagesAsync(fullText, wordsPerPage = 300, onProgress = () => {}) {
+export async function chunkTextIntoPagesAsync(fullText, wordsPerPage = 100, onProgress = () => {}) {
   if (!fullText) return [];
 
   const pages = [];
   let currentChunk = [];
   let wordCounter = 0;
   let tokenCount = 0;
-  const tokens = /[\w\u00C0-\u024F]+|[^\w\u00C0-\u024F]+/g;
+  const tokens = /[\p{L}\p{M}\p{N}]+|[^\p{L}\p{M}\p{N}]+/gu;
   let match;
 
   while ((match = tokens.exec(fullText)) !== null) {
     const token = match[0];
     currentChunk.push(token);
-    if (/[\w\u00C0-\u024F]/.test(token)) wordCounter++;
+    if (/[\p{L}\p{M}\p{N}]/u.test(token)) wordCounter++;
 
     if (wordCounter >= wordsPerPage) {
       pages.push(currentChunk.join(""));
@@ -154,4 +154,13 @@ export async function chunkTextIntoPagesAsync(fullText, wordsPerPage = 300, onPr
   if (currentChunk.length > 0) pages.push(currentChunk.join(""));
   onProgress(100);
   return pages;
+}
+
+export function splitTextPageInHalf(text) {
+  const wordMatches = Array.from(text.matchAll(/[\p{L}\p{M}\p{N}]+/gu));
+  if (wordMatches.length < 2) return null;
+
+  const midpoint = Math.ceil(wordMatches.length / 2);
+  const splitIndex = wordMatches[midpoint - 1].index + wordMatches[midpoint - 1][0].length;
+  return [text.slice(0, splitIndex), text.slice(splitIndex)];
 }

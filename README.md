@@ -2,6 +2,9 @@
 
 A lightweight, local-first Progressive Web App (PWA) inspired by [Lute](https://github.com/LuteLanguageLearning/lute) (Learning Using Texts). It runs entirely in your browser with no server required, storing all data locally on your device.
 
+**How to use**
+Read a book. Choose a book from the library or upload your own. Tap a word to see its Englishtranslation and set its learning level.
+
 [**Live Demo**](https://lute.rivieraapps.com)
 
 ---

@@ -1,10 +1,18 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Upload, BookMarked, Trash2 } from 'lucide-react';
 import { db } from '../db/LocalDB';
 import { parseEPUBFile } from '../utils/epubParser';
 import { seedDefaultBooks } from '../utils/defaultBooks';
 
-export function BookListScreen({ onOpenBook, themeStyles }) {
+const LEVEL_BAR_COLORS = {
+  1: 'bg-amber-400',
+  2: 'bg-orange-500',
+  3: 'bg-green-500',
+  4: 'bg-zinc-500',
+  99: 'bg-zinc-400',
+};
+
+export function BookListScreen({ onOpenBook, themeStyles, wordsDb }) {
   const [books, setBooks] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
@@ -27,6 +35,27 @@ export function BookListScreen({ onOpenBook, themeStyles }) {
   useEffect(() => {
     loadBooks();
   }, []);
+
+  const bookWordCounts = useMemo(() => {
+    const countsByBook = {};
+
+    for (const book of books) {
+      const counts = { total: 0, 1: 0, 2: 0, 3: 0, 4: 0, 99: 0 };
+      const wordPattern = /[\p{L}\p{M}\p{N}]+/gu;
+      const content = book.content || '';
+      let match;
+
+      while ((match = wordPattern.exec(content)) !== null) {
+        counts.total++;
+        const status = wordsDb[match[0].toLowerCase()]?.status;
+        if (counts[status] !== undefined) counts[status]++;
+      }
+
+      countsByBook[book.id] = counts;
+    }
+
+    return countsByBook;
+  }, [books, wordsDb]);
 
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
@@ -109,7 +138,12 @@ export function BookListScreen({ onOpenBook, themeStyles }) {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-2.5">
-          {books.map(b => (
+          {books.map((b) => {
+            const counts = bookWordCounts[b.id] || {};
+            const totalWords = counts.total || 0;
+            const markedWords = [1, 2, 3, 4, 99].reduce((total, level) => total + (counts[level] || 0), 0);
+
+            return (
             <div 
               key={b.id}
               onClick={() => onOpenBook(b.id)}
@@ -118,9 +152,23 @@ export function BookListScreen({ onOpenBook, themeStyles }) {
               <div className="flex-1 pr-3 min-w-0">
                 <h3 className={`font-medium text-sm truncate group-hover:text-amber-500 ${themeStyles.textPrimary}`}>{b.title}</h3>
                 <div className={`flex items-center gap-2 mt-1 text-[11px] ${themeStyles.textMuted}`}>
-                  <span>{Math.round((b.content?.length || 0) / 5)} words</span>
+                  <span>{bookWordCounts[b.id]?.total || 0} words</span>
                   <span>•</span>
                   <span>Page {(b.currentPage || 0) + 1}</span>
+                </div>
+                <div
+                  className="mt-2 flex h-2 w-full overflow-hidden rounded-sm bg-zinc-200 dark:bg-zinc-700"
+                  role="img"
+                  aria-label={`${markedWords} marked and ${totalWords - markedWords} unmarked word occurrences`}
+                  title={`${markedWords} marked · ${totalWords - markedWords} unmarked`}
+                >
+                  {[1, 2, 3, 4, 99].map((level) => counts[level] > 0 && (
+                    <span
+                      key={level}
+                      className={LEVEL_BAR_COLORS[level]}
+                      style={{ width: `${(counts[level] / Math.max(totalWords, 1)) * 100}%` }}
+                    />
+                  ))}
                 </div>
               </div>
 
@@ -132,7 +180,8 @@ export function BookListScreen({ onOpenBook, themeStyles }) {
                 <Trash2 className="w-4 h-4" />
               </button>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
