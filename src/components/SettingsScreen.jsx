@@ -1,11 +1,30 @@
 import { useState } from "react";
-import { BookOpen, Download, HelpCircle, Upload, X } from "lucide-react";
+import { BookOpen, Download, HelpCircle, Smartphone, Upload, X } from "lucide-react";
 import packageInfo from "../../package.json";
 
-export function SettingsScreen({ onExport, onImport }) {
+export function SettingsScreen({ onExport, onImport, deferredPrompt, onClearPrompt }) {
   const [showHelp, setShowHelp] = useState(false);
+  const [installMessage, setInstallMessage] = useState('');
 
   const CURRENT_VERSION = `v${packageInfo.version}`;
+
+  const handleInstall = async () => {
+    if (!deferredPrompt) {
+      setInstallMessage('Open Chrome menu and choose Install app or Add to Home screen.');
+      return;
+    }
+
+    try {
+      await deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      setInstallMessage(outcome === 'accepted' ? 'Lute is being installed.' : 'Installation was dismissed.');
+    } catch (error) {
+      console.error('Could not open the install prompt:', error);
+      setInstallMessage('Open Chrome menu and choose Install app or Add to Home screen.');
+    } finally {
+      onClearPrompt?.();
+    }
+  };
 
   return (
     <div className="max-w-md mx-auto p-4 space-y-6 text-zinc-900 dark:text-zinc-100">
@@ -22,6 +41,18 @@ export function SettingsScreen({ onExport, onImport }) {
         <HelpCircle className="h-5 w-5" />
         How to use Lute
       </button>
+
+      <div>
+        <button
+          type="button"
+          onClick={handleInstall}
+          className="flex w-full items-center gap-3 rounded-md bg-amber-500 p-3 text-left text-sm font-semibold text-zinc-950 transition hover:bg-amber-400"
+        >
+          <Smartphone className="h-5 w-5" />
+          Install Lute
+        </button>
+        {installMessage && <p className="mt-2 text-xs text-zinc-500" role="status">{installMessage}</p>}
+      </div>
 
       {/* Backup and Restore */}
       <div className="space-y-2 pt-4 border-t border-zinc-200 dark:border-zinc-800">
