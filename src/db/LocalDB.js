@@ -235,6 +235,7 @@ export class LocalDB {
       username: '',
       readerTheme: 'system',
       githubRepo: DEFAULT_GITHUB_REPO,
+      bookSources: [{ id: 'built-in', name: 'Built-in books', url: 'builtin', enabled: true }],
       enableSync: false,
       isLoggedIn: false,
       syncApiUrl: 'https://api.example.com/lute/sync'

@@ -96,6 +96,7 @@ export async function seedDefaultBooks(db) {
         title: getBookTitle(content, sourcePath),
         content,
         currentPage: 0,
+        hasBeenOpened: false,
         addedAt: new Date().toISOString(),
         defaultBookPath: sourcePath,
       });

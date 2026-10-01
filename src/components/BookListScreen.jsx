@@ -83,6 +83,7 @@ export function BookListScreen({ onOpenBook, themeStyles, wordsDb }) {
         title: title || "Untitled Book",
         content: content,
         currentPage: 0,
+        hasBeenOpened: false,
         addedAt: new Date().toISOString()
       };
 
@@ -150,7 +151,12 @@ export function BookListScreen({ onOpenBook, themeStyles, wordsDb }) {
               className={`p-3.5 border rounded-xl cursor-pointer flex items-center justify-between transition group ${themeStyles.cardBg} ${themeStyles.cardHover}`}
             >
               <div className="flex-1 pr-3 min-w-0">
-                <h3 className={`font-medium text-sm truncate group-hover:text-amber-500 ${themeStyles.textPrimary}`}>{b.title}</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className={`font-medium text-sm truncate group-hover:text-amber-500 ${themeStyles.textPrimary}`}>{b.title}</h3>
+                  {b.hasBeenOpened === false && (
+                    <span className="shrink-0 rounded-sm bg-amber-500 px-1.5 py-0.5 text-[9px] font-bold leading-none text-zinc-950">NEW</span>
+                  )}
+                </div>
                 <div className={`flex items-center gap-2 mt-1 text-[11px] ${themeStyles.textMuted}`}>
                   <span>{bookWordCounts[b.id]?.total || 0} words</span>
                   <span>•</span>

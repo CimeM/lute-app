@@ -1,26 +1,47 @@
 import { useState } from "react";
-import { BookOpen, Download, HelpCircle, Smartphone, Upload, X } from "lucide-react";
+import { BookOpen, Download, HelpCircle, Plus, Smartphone, Trash2, Upload, X } from "lucide-react";
 import packageInfo from "../../package.json";
+import { DEFAULT_BOOK_SOURCES } from "../utils/bookCatalog";
 
-export function SettingsScreen({ onExport, onImport, deferredPrompt, onClearPrompt }) {
+export function SettingsScreen({ settings, onSaveSettings, onNotify, onExport, onImport, deferredPrompt, onClearPrompt }) {
   const [showHelp, setShowHelp] = useState(false);
-  const [installMessage, setInstallMessage] = useState('');
+  const [newSourceUrl, setNewSourceUrl] = useState('');
 
   const CURRENT_VERSION = `v${packageInfo.version}`;
+  const bookSources = settings?.bookSources || DEFAULT_BOOK_SOURCES;
+
+  const saveBookSources = (updatedSources) => {
+    onSaveSettings({ ...settings, bookSources: updatedSources });
+  };
+
+  const handleAddSource = (event) => {
+    event.preventDefault();
+    const url = newSourceUrl.trim();
+    try {
+      const parsedUrl = new URL(url);
+      if (!['http:', 'https:'].includes(parsedUrl.protocol)) throw new Error('Use an HTTP or HTTPS URL.');
+      if (bookSources.some((source) => source.url === url)) throw new Error('This source is already listed.');
+      saveBookSources([...bookSources, { id: url, name: parsedUrl.hostname, url, enabled: true }]);
+      setNewSourceUrl('');
+      onNotify('Book source added.', 'success');
+    } catch (error) {
+      onNotify(error.message || 'Enter a valid catalog URL.', 'error');
+    }
+  };
 
   const handleInstall = async () => {
     if (!deferredPrompt) {
-      setInstallMessage('Open Chrome menu and choose Install app or Add to Home screen.');
+      onNotify('Open Chrome menu and choose Install app or Add to Home screen.');
       return;
     }
 
     try {
       await deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
-      setInstallMessage(outcome === 'accepted' ? 'Lute is being installed.' : 'Installation was dismissed.');
+      onNotify(outcome === 'accepted' ? 'Lute is being installed.' : 'Installation was dismissed.');
     } catch (error) {
       console.error('Could not open the install prompt:', error);
-      setInstallMessage('Open Chrome menu and choose Install app or Add to Home screen.');
+      onNotify('Open Chrome menu and choose Install app or Add to Home screen.', 'error');
     } finally {
       onClearPrompt?.();
     }
@@ -42,6 +63,59 @@ export function SettingsScreen({ onExport, onImport, deferredPrompt, onClearProm
         How to use Lute
       </button>
 
+      <section className="border-y border-zinc-200 py-3 dark:border-zinc-800">
+        <details>
+          <summary className="cursor-pointer text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+            Book sources ({bookSources.filter((source) => source.enabled).length} selected)
+          </summary>
+          <div className="mt-3 space-y-2">
+            {bookSources.map((source) => (
+              <div key={source.id} className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={source.enabled}
+                  onChange={(event) => saveBookSources(bookSources.map((entry) => (
+                    entry.id === source.id ? { ...entry, enabled: event.target.checked } : entry
+                  )))}
+                  aria-label={`Use ${source.name}`}
+                  className="h-4 w-4 accent-amber-500"
+                />
+                <span className="min-w-0 flex-1 truncate" title={source.url}>{source.name}</span>
+                {source.url !== 'builtin' && (
+                  <button
+                    type="button"
+                    onClick={() => saveBookSources(bookSources.filter((entry) => entry.id !== source.id))}
+                    aria-label={`Remove ${source.name}`}
+                    className="rounded p-1 text-zinc-500 hover:text-red-500"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            ))}
+            <form onSubmit={handleAddSource} className="flex gap-2 pt-2">
+              <input
+                type="url"
+                value={newSourceUrl}
+                onChange={(event) => setNewSourceUrl(event.target.value)}
+                placeholder="https://example.com/books/index.json"
+                aria-label="Book catalog URL"
+                className="min-w-0 flex-1 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-xs text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+                required
+              />
+              <button
+                type="submit"
+                aria-label="Add book source"
+                title="Add book source"
+                className="rounded-md bg-amber-500 px-2 text-zinc-950 hover:bg-amber-400"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+            </form>
+          </div>
+        </details>
+      </section>
+
       <div>
         <button
           type="button"
@@ -49,9 +123,8 @@ export function SettingsScreen({ onExport, onImport, deferredPrompt, onClearProm
           className="flex w-full items-center gap-3 rounded-md bg-amber-500 p-3 text-left text-sm font-semibold text-zinc-950 transition hover:bg-amber-400"
         >
           <Smartphone className="h-5 w-5" />
-          Install Lute
+          Install Lute PWA
         </button>
-        {installMessage && <p className="mt-2 text-xs text-zinc-500" role="status">{installMessage}</p>}
       </div>
 
       {/* Backup and Restore */}
