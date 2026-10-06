@@ -4,7 +4,7 @@ Lute is a lightweight, local-first Progressive Web App for reading books while l
 
 The app is inspired by [Lute 3](https://github.com/LuteLanguageLearning/lute), the original Learning Using Texts project. Lute brings that reading-and-vocabulary workflow to an installable PWA.
 
-[**Live Demo**](https://lute.rivieraapps.com)
+[**Live Demo**](https://lute-app.rivieraapps.com)
 
 ---
 
