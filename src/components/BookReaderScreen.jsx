@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { ArrowLeft, ChevronLeft, ChevronRight, Play, X } from 'lucide-react';
 import { db } from '../db/LocalDB';
 import { chunkTextIntoPagesAsync, splitTextPageInHalf } from '../utils/epubParser';
+import { getReaderBackgroundStyles } from '../utils/theme';
 
 export function BookReaderScreen({ bookId, wordsDb, onUpdateWord, settings, onBack, themeStyles }) {
   const [book, setBook] = useState(null);
@@ -17,6 +18,7 @@ export function BookReaderScreen({ bookId, wordsDb, onUpdateWord, settings, onBa
   const [translationError, setTranslationError] = useState('');
   const [popupPosition, setPopupPosition] = useState('bottom');
   const [fontSize, setFontSize] = useState(18);
+  const readerBackgroundStyles = getReaderBackgroundStyles(settings?.readerBackground || 'theme', themeStyles);
   const pageContainerRef = useRef(null);
   const pageContentRef = useRef(null);
   const canSpeakWords = typeof window !== 'undefined'
@@ -342,7 +344,7 @@ export function BookReaderScreen({ bookId, wordsDb, onUpdateWord, settings, onBa
         ref={pageContainerRef}
         onClick={handleCanvasClick}
         className="flex-1 min-h-0 p-6 overflow-hidden font-serif-reader cursor-pointer relative"
-        style={{ fontSize: `${fontSize}px` }}
+        style={{ ...readerBackgroundStyles, fontSize: `${fontSize}px` }}
       >
         <div key={currentPage} ref={pageContentRef} className="reader-page-enter h-full overflow-hidden whitespace-pre-wrap leading-relaxed">
           {renderedContent}

@@ -2,8 +2,9 @@ import { useState } from "react";
 import { BookOpen, Download, HelpCircle, Plus, Smartphone, Trash2, Upload, X } from "lucide-react";
 import packageInfo from "../../package.json";
 import { DEFAULT_BOOK_SOURCES } from "../utils/bookCatalog";
+import { READER_BACKGROUND_OPTIONS } from "../utils/theme";
 
-export function SettingsScreen({ settings, onSaveSettings, onNotify, onExport, onImport, deferredPrompt, isInstalledPwa, installInstructions, onClearPrompt }) {
+export function SettingsScreen({ settings, onSaveSettings, onNotify, onExport, onImport, deferredPrompt, isInstalledPwa, installInstructions, onClearPrompt, themeStyles }) {
   const [showHelp, setShowHelp] = useState(false);
   const [newSourceUrl, setNewSourceUrl] = useState('');
 
@@ -48,11 +49,52 @@ export function SettingsScreen({ settings, onSaveSettings, onNotify, onExport, o
   };
 
   return (
-    <div className="max-w-md mx-auto p-4 space-y-6 text-zinc-900 dark:text-zinc-100">
+    <div className="h-full max-w-md mx-auto overflow-y-auto overscroll-contain p-4 space-y-6 text-zinc-900 dark:text-zinc-100">
       {/* Title */}
       <div className="border-b border-zinc-200 dark:border-zinc-800 pb-3">
         <h2 className="text-xl font-bold">Settings</h2>
       </div>
+
+      <section className="space-y-3 border-b border-zinc-200 pb-4 dark:border-zinc-800">
+        <label htmlFor="reader-theme" className="block text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+          App theme
+        </label>
+        <select
+          id="reader-theme"
+          value={settings?.readerTheme || 'system'}
+          onChange={(event) => onSaveSettings({ ...settings, readerTheme: event.target.value })}
+          className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+        >
+          <option value="system">System</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+          <option value="sepia">Sepia</option>
+        </select>
+
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Reader background</legend>
+          <div className="grid grid-cols-3 gap-2">
+            {READER_BACKGROUND_OPTIONS.map((option) => {
+              const selected = (settings?.readerBackground || 'theme') === option.value;
+              const preview = option.backgroundColor
+                ? { backgroundColor: option.backgroundColor }
+                : themeStyles.readerBackground;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => onSaveSettings({ ...settings, readerBackground: option.value })}
+                  aria-pressed={selected}
+                  className={`flex min-h-16 flex-col items-center justify-center gap-1 rounded-md border p-2 text-xs transition ${selected ? 'border-amber-500 ring-1 ring-amber-500' : 'border-zinc-300 dark:border-zinc-700'}`}
+                >
+                  <span className="h-5 w-8 rounded-sm border border-black/15" style={preview} aria-hidden="true" />
+                  <span>{option.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </fieldset>
+      </section>
 
       <button
         type="button"

@@ -78,8 +78,15 @@ export default function App() {
   }, [settings, isInstalledPwa, isInstallDismissed]);
 
   useEffect(() => {
+    document.documentElement.classList.toggle('dark', effectiveTheme === 'dark');
     document.body.className = `h-dvh overflow-hidden flex flex-col transition-colors duration-200 ${themeStyles.bodyBg}`;
   }, [effectiveTheme, themeStyles.bodyBg]);
+
+  useEffect(() => {
+    document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => {
+      meta.setAttribute('content', themeStyles.statusBarColor);
+    });
+  }, [themeStyles.statusBarColor]);
 
   useEffect(() => {
     let isMounted = true;
@@ -103,6 +110,7 @@ export default function App() {
             key: 'user_config',
             username: '',
             readerTheme: 'system',
+            readerBackground: 'theme',
             githubRepo: DEFAULT_GITHUB_REPO,
             bookSources: DEFAULT_BOOK_SOURCES,
             enableSync: false,

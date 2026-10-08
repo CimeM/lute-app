@@ -234,6 +234,7 @@ export class LocalDB {
       key: 'user_config',
       username: '',
       readerTheme: 'system',
+      readerBackground: 'theme',
       githubRepo: DEFAULT_GITHUB_REPO,
       bookSources: [{ id: 'built-in', name: 'Built-in books', url: 'builtin', enabled: true }],
       enableSync: false,

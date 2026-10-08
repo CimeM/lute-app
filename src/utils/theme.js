@@ -19,9 +19,26 @@ export function useResolvedTheme(themeSetting) {
   return themeSetting || 'dark';
 }
 
+export const READER_BACKGROUND_OPTIONS = [
+  { value: 'theme', label: 'Match theme', backgroundColor: null, color: null },
+  { value: 'white', label: 'White', backgroundColor: '#ffffff', color: '#18181b' },
+  { value: 'paper', label: 'Paper yellow', backgroundColor: '#f4e4c1', color: '#451a03' },
+  { value: 'gray', label: 'Soft gray', backgroundColor: '#e7e5e4', color: '#292524' },
+  { value: 'sage', label: 'Soft green', backgroundColor: '#e5eee5', color: '#1c3325' },
+  { value: 'dark', label: 'Dark', backgroundColor: '#18181b', color: '#f4f4f5' },
+];
+
+export function getReaderBackgroundStyles(background, themeStyles) {
+  const option = READER_BACKGROUND_OPTIONS.find((item) => item.value === background);
+  if (!option || option.value === 'theme') return themeStyles.readerBackground;
+  return { backgroundColor: option.backgroundColor, color: option.color };
+}
+
 export function getThemeStyles(theme) {
   if (theme === 'light') {
     return {
+      statusBarColor: '#e2e8f0',
+      readerBackground: { backgroundColor: '#f8fafc', color: '#0f172a' },
       bodyBg: 'bg-slate-100 text-slate-900',
       appBg: 'bg-slate-200',
       containerBg: 'bg-white border-slate-200',
@@ -42,6 +59,8 @@ export function getThemeStyles(theme) {
   }
   if (theme === 'sepia') {
     return {
+      statusBarColor: '#f4e4c1',
+      readerBackground: { backgroundColor: '#fbf0d9', color: '#451a03' },
       bodyBg: 'bg-amber-100 text-amber-950',
       appBg: 'bg-amber-200/60',
       containerBg: 'bg-[#fbf0d9] border-amber-200/80',
@@ -61,6 +80,8 @@ export function getThemeStyles(theme) {
     };
   }
   return {
+    statusBarColor: '#09090b',
+    readerBackground: { backgroundColor: '#09090b', color: '#f4f4f5' },
     bodyBg: 'bg-zinc-950 text-zinc-100',
     appBg: 'bg-zinc-950',
     containerBg: 'bg-zinc-900 border-zinc-800',
