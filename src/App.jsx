@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { BookOpen, Settings, Store } from 'lucide-react';
+import { BookOpen, Copy, ExternalLink, Settings, Smartphone, Store, X } from 'lucide-react';
 import { db, DEFAULT_GITHUB_REPO } from './db/LocalDB';
 import { useResolvedTheme, getThemeStyles } from './utils/theme';
 import { DEFAULT_BOOK_SOURCES, fetchBookCatalog, importCatalogBook } from './utils/bookCatalog';
@@ -9,12 +9,53 @@ import { BookReaderScreen } from './components/BookReaderScreen';
 import { SettingsScreen } from './components/SettingsScreen';
 import { Notification } from './components/Notification';
 
+const getInstallEnvironment = () => {
+  const userAgent = navigator.userAgent || '';
+  const isIOS = /iPad|iPhone|iPod/i.test(userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isEmbedded = window.self !== window.top
+    || /FBAN|FBAV|Instagram|Twitter|TikTok|Snapchat|LinkedInApp|; wv\)/i.test(userAgent);
+  const displayModes = ['standalone', 'fullscreen', 'minimal-ui', 'window-controls-overlay'];
+  const isStandalone = displayModes.some((mode) => window.matchMedia?.(`(display-mode: ${mode})`).matches)
+    || navigator.standalone === true;
+  let browser = 'this browser';
+
+  if (/Edg\//i.test(userAgent)) browser = 'Edge';
+  else if (/SamsungBrowser/i.test(userAgent)) browser = 'Samsung Internet';
+  else if (/OPR\//i.test(userAgent)) browser = 'Opera';
+  else if (/CriOS|Chrome\//i.test(userAgent)) browser = 'Chrome';
+  else if (/FxiOS|Firefox\//i.test(userAgent)) browser = 'Firefox';
+  else if (/Safari\//i.test(userAgent)) browser = 'Safari';
+
+  return { browser, isEmbedded, isIOS, isStandalone };
+};
+
+const getInstallInstructions = ({ browser, isEmbedded, isIOS }) => {
+  if (isEmbedded) return 'Open this link in Safari or Chrome first; in-app browsers may not support installation.';
+  if (isIOS) return 'In Safari, tap Share, then choose Add to Home Screen.';
+  if (browser === 'Safari') return 'In Safari, choose File, then Add to Dock.';
+  if (['Chrome', 'Edge', 'Opera', 'Samsung Internet'].includes(browser)) {
+    return `Open the ${browser} menu and choose Install Lute or Add to Home Screen.`;
+  }
+  return 'Open this page in Chrome, Edge, or Safari to install Lute.';
+};
+
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState('books');
   const [activeBookId, setActiveBookId] = useState(null);
   const [settings, setSettings] = useState(null);
   const [wordsDb, setWordsDb] = useState({});
   const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [showInstallReminder, setShowInstallReminder] = useState(false);
+  const [isInstallDismissed, setIsInstallDismissed] = useState(() => {
+    try {
+      return sessionStorage.getItem('lute-install-reminder-dismissed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [installEnvironment] = useState(getInstallEnvironment);
+  const [isInstalledPwa, setIsInstalledPwa] = useState(installEnvironment.isStandalone);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [notification, setNotification] = useState(null);
   const processedImportLink = useRef(false);
@@ -26,6 +67,15 @@ export default function App() {
   const activeThemeSetting = settings?.readerTheme || 'system';
   const effectiveTheme = useResolvedTheme(activeThemeSetting);
   const themeStyles = getThemeStyles(effectiveTheme);
+  const installInstructions = deferredPrompt
+    ? 'Add Lute to your device with the install prompt below.'
+    : getInstallInstructions(installEnvironment);
+
+  useEffect(() => {
+    if (!settings || isInstalledPwa || isInstallDismissed) return undefined;
+    const timeoutId = window.setTimeout(() => setShowInstallReminder(true), 60_000);
+    return () => window.clearTimeout(timeoutId);
+  }, [settings, isInstalledPwa, isInstallDismissed]);
 
   useEffect(() => {
     document.body.className = `h-dvh overflow-hidden flex flex-col transition-colors duration-200 ${themeStyles.bodyBg}`;
@@ -68,16 +118,33 @@ export default function App() {
       e.preventDefault();
       setDeferredPrompt(e);
     };
+    const handleAppInstalled = () => {
+      setIsInstalledPwa(true);
+      setDeferredPrompt(null);
+      setShowInstallReminder(false);
+      setIsInstallDismissed(true);
+    };
+    const displayModeQueries = ['standalone', 'fullscreen', 'minimal-ui', 'window-controls-overlay']
+      .map((mode) => window.matchMedia(`(display-mode: ${mode})`));
+    const handleDisplayModeChange = () => {
+      if (displayModeQueries.some((query) => query.matches) || navigator.standalone === true) {
+        handleAppInstalled();
+      }
+    };
 
     window.addEventListener('beforeinstallprompt', handleInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+    displayModeQueries.forEach((query) => query.addEventListener('change', handleDisplayModeChange));
 
     return () => {
       isMounted = false;
       window.removeEventListener('beforeinstallprompt', handleInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      displayModeQueries.forEach((query) => query.removeEventListener('change', handleDisplayModeChange));
     };
   }, []);
 
@@ -175,6 +242,46 @@ export default function App() {
     }
   };
 
+  const dismissInstallReminder = () => {
+    try {
+      sessionStorage.setItem('lute-install-reminder-dismissed', 'true');
+    } catch {
+      // Keep the dismissal for this render when storage is unavailable.
+    }
+    setShowInstallReminder(false);
+    setIsInstallDismissed(true);
+  };
+
+  const handleInstallAction = async () => {
+    if (installEnvironment.isEmbedded) {
+      try {
+        await navigator.clipboard.writeText(window.location.href);
+        notify('URL copied. Open it in Safari or Chrome to install Lute.', 'success');
+      } catch {
+        notify(installInstructions);
+      }
+      return;
+    }
+
+    if (!deferredPrompt) {
+      notify(installInstructions);
+      dismissInstallReminder();
+      return;
+    }
+
+    try {
+      await deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      notify(outcome === 'accepted' ? 'Lute is being installed.' : 'Installation was dismissed.');
+    } catch (error) {
+      console.error('Could not open the install prompt:', error);
+      notify(installInstructions);
+    } finally {
+      setDeferredPrompt(null);
+      dismissInstallReminder();
+    }
+  };
+
   if (!settings) {
     return (
       <div className={`h-dvh w-screen flex items-center justify-center font-mono text-xs ${themeStyles.bodyBg}`}>
@@ -226,6 +333,8 @@ export default function App() {
             }}
             onExport={exportDatabase}
             deferredPrompt={deferredPrompt}
+            isInstalledPwa={isInstalledPwa}
+            installInstructions={installInstructions}
             onClearPrompt={() => setDeferredPrompt(null)}
             themeStyles={themeStyles}
           />
@@ -233,6 +342,47 @@ export default function App() {
       </main>
 
       <Notification notification={notification} onDismiss={dismissNotification} />
+
+      {showInstallReminder && !isInstalledPwa && (
+        <aside
+          className="install-reminder fixed inset-x-3 z-40 mx-auto max-w-md rounded-lg border border-amber-500/40 bg-white p-3 text-zinc-900 shadow-xl dark:bg-zinc-900 dark:text-zinc-100"
+          style={{ bottom: currentScreen === 'reader' ? 'calc(12px + env(safe-area-inset-bottom))' : 'calc(3.5rem + env(safe-area-inset-bottom) + 12px)' }}
+          aria-label="Install Lute"
+        >
+          <div className="flex items-start gap-3">
+            <Smartphone className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="text-sm font-semibold">Install Lute?</h2>
+                <button type="button" onClick={dismissInstallReminder} aria-label="Dismiss install reminder" title="Dismiss" className="rounded p-1 text-zinc-500 transition hover:bg-zinc-100 active:scale-95 dark:hover:bg-zinc-800">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <p className="mt-1 text-xs leading-relaxed text-zinc-600 dark:text-zinc-300">{installInstructions}</p>
+              <div className="mt-2 flex justify-end">
+                {installEnvironment.isEmbedded ? (
+                  <>
+                    <a href={window.location.href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-semibold text-zinc-800 transition hover:bg-zinc-100 active:scale-95 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800">
+                      <ExternalLink className="h-3.5 w-3.5" /> Open in browser
+                    </a>
+                    <button type="button" onClick={handleInstallAction} className="inline-flex items-center gap-1.5 rounded-md bg-amber-500 px-3 py-1.5 text-xs font-semibold text-zinc-950 transition hover:bg-amber-400 active:scale-95">
+                      <Copy className="h-3.5 w-3.5" /> Copy URL
+                    </button>
+                  </>
+                ) : deferredPrompt ? (
+                  <button type="button" onClick={handleInstallAction} className="inline-flex items-center gap-1.5 rounded-md bg-amber-500 px-3 py-1.5 text-xs font-semibold text-zinc-950 transition hover:bg-amber-400 active:scale-95">
+                    <Smartphone className="h-3.5 w-3.5" /> Install
+                  </button>
+                ) : (
+                  <button type="button" onClick={dismissInstallReminder} className="rounded-md px-3 py-1.5 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-100 active:scale-95 dark:text-zinc-200 dark:hover:bg-zinc-800">
+                    Got it
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </aside>
+      )}
 
       {currentScreen !== 'reader' && (
         <nav className={`bottom-nav border-t flex items-center justify-around z-20 px-2 transition-colors duration-200 ${themeStyles.navBg}`}>

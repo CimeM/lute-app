@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lute-shell-v2';
+const CACHE_NAME = 'lute-shell-v3';
 const CORE_ASSETS = [
   '/index.html',
   '/manifest.json',

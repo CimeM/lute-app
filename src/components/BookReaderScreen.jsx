@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { ArrowLeft, X } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Play, X } from 'lucide-react';
 import { db } from '../db/LocalDB';
 import { chunkTextIntoPagesAsync, splitTextPageInHalf } from '../utils/epubParser';
 
@@ -19,6 +19,11 @@ export function BookReaderScreen({ bookId, wordsDb, onUpdateWord, settings, onBa
   const [fontSize, setFontSize] = useState(18);
   const pageContainerRef = useRef(null);
   const pageContentRef = useRef(null);
+  const canSpeakWords = typeof window !== 'undefined'
+    && typeof window.speechSynthesis?.speak === 'function'
+    && typeof window.SpeechSynthesisUtterance === 'function';
+
+  useEffect(() => () => window.speechSynthesis?.cancel(), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -161,6 +166,7 @@ export function BookReaderScreen({ bookId, wordsDb, onUpdateWord, settings, onBa
 
   const saveProgress = async (newPageIdx) => {
     const safeIndex = Math.max(0, Math.min(newPageIdx, totalPages - 1));
+    window.speechSynthesis?.cancel();
     setCurrentPage(safeIndex);
     if (book) {
       const updatedBook = { ...book, currentPage: safeIndex };
@@ -177,9 +183,22 @@ export function BookReaderScreen({ bookId, wordsDb, onUpdateWord, settings, onBa
     if (currentPage > 0) saveProgress(currentPage - 1);
   };
 
+  const playSelectedWord = () => {
+    if (!canSpeakWords || !selectedWord?.text) return;
+    const utterance = new window.SpeechSynthesisUtterance(selectedWord.text);
+    if (book?.language) utterance.lang = book.language;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const closeWordSheet = () => {
+    window.speechSynthesis?.cancel();
+    setSelectedWord(null);
+  };
+
   const handleCanvasClick = (e) => {
     if (selectedWord) {
-      setSelectedWord(null);
+      closeWordSheet();
       return;
     }
 
@@ -211,7 +230,7 @@ export function BookReaderScreen({ bookId, wordsDb, onUpdateWord, settings, onBa
   const handleSetWordStatus = (status) => {
     if (!selectedWord) return;
     onUpdateWord(selectedWord.text, status, customTranslation);
-    setSelectedWord(null);
+    closeWordSheet();
   };
 
   // Process text into clickable tokens
@@ -261,12 +280,38 @@ export function BookReaderScreen({ bookId, wordsDb, onUpdateWord, settings, onBa
     <div className="h-full flex flex-col relative select-none overflow-hidden">
       {/* Top Bar with Integrated Font Controls */}
       <div className={`h-12 border-b flex items-center justify-between px-3 z-10 gap-2 transition ${themeStyles.headerBg}`}>
-        <button onClick={onBack} className="p-1 rounded-md hover:bg-zinc-800/20">
+        <button type="button" onClick={onBack} aria-label="Back to library" title="Back to library" className="shrink-0 rounded-md p-1 transition hover:bg-zinc-800/20 active:scale-95">
           <ArrowLeft className="w-5 h-5" />
         </button>
 
-        <div className="truncate text-center flex-1 font-medium text-xs">
+        <div className="min-w-0 flex-1 truncate text-center text-xs font-medium">
           {book.title}
+        </div>
+
+        <div className="flex shrink-0 items-center gap-0.5">
+          <button
+            type="button"
+            onClick={handlePrevPage}
+            disabled={currentPage === 0}
+            aria-label="Previous page"
+            title="Previous page"
+            className="rounded-md p-1 transition hover:bg-zinc-800/20 active:scale-95 disabled:cursor-not-allowed disabled:opacity-35"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <span className="min-w-[3rem] text-center text-[10px] font-mono tabular-nums text-zinc-500" aria-live="polite">
+            {currentPage + 1}/{totalPages}
+          </span>
+          <button
+            type="button"
+            onClick={handleNextPage}
+            disabled={currentPage >= totalPages - 1}
+            aria-label="Next page"
+            title="Next page"
+            className="rounded-md p-1 transition hover:bg-zinc-800/20 active:scale-95 disabled:cursor-not-allowed disabled:opacity-35"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
         </div>
 
         {/* Font Controls */}
@@ -290,10 +335,6 @@ export function BookReaderScreen({ bookId, wordsDb, onUpdateWord, settings, onBa
           </button>
         </div>
 
-        {/* Page Counter */}
-        <div className="text-xs font-mono text-zinc-500 min-w-[40px] text-right">
-          {currentPage + 1}/{totalPages}
-        </div>
       </div>
 
       {/* Column Reader View */}
@@ -303,7 +344,7 @@ export function BookReaderScreen({ bookId, wordsDb, onUpdateWord, settings, onBa
         className="flex-1 min-h-0 p-6 overflow-hidden font-serif-reader cursor-pointer relative"
         style={{ fontSize: `${fontSize}px` }}
       >
-        <div ref={pageContentRef} className="h-full overflow-hidden whitespace-pre-wrap leading-relaxed">
+        <div key={currentPage} ref={pageContentRef} className="reader-page-enter h-full overflow-hidden whitespace-pre-wrap leading-relaxed">
           {renderedContent}
         </div>
       </div>
@@ -313,9 +354,16 @@ export function BookReaderScreen({ bookId, wordsDb, onUpdateWord, settings, onBa
         <div className={`fixed left-4 right-4 z-30 p-4 border rounded-xl shadow-2xl transition ${themeStyles.modalBg} ${popupPosition === 'top' ? 'top-16' : 'bottom-16'}`}>
           <div className="flex items-center justify-between mb-2">
             <span className="font-bold text-lg capitalize">{selectedWord.text}</span>
-            <button onClick={() => setSelectedWord(null)} className="p-1 text-zinc-400 hover:text-zinc-200">
-              <X className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-1">
+              {canSpeakWords && (
+                <button type="button" onClick={playSelectedWord} aria-label={`Play pronunciation of ${selectedWord.text}`} title="Play pronunciation" className="rounded p-1 text-zinc-400 transition hover:bg-zinc-800/20 hover:text-zinc-900 active:scale-95 dark:hover:text-zinc-100">
+                  <Play className="w-4 h-4" />
+                </button>
+              )}
+              <button type="button" onClick={closeWordSheet} aria-label="Close word details" title="Close" className="rounded p-1 text-zinc-400 transition hover:bg-zinc-800/20 hover:text-zinc-900 active:scale-95 dark:hover:text-zinc-100">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
           <input 
