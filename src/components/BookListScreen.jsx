@@ -12,11 +12,27 @@ const LEVEL_BAR_COLORS = {
   99: 'bg-zinc-400',
 };
 
+const MONTHLY_LIBRARY_DECORATIONS = {
+  1: '❄️',
+  2: '💘',
+  3: '🌷',
+  4: '',
+  5: '',
+  6: '',
+  7: '',
+  8: '🌊',
+  9: '🌾',
+  10: '🎃',
+  11: '',
+  12: '🎄',
+};
+
 export function BookListScreen({ onOpenBook, themeStyles, wordsDb }) {
   const [books, setBooks] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef(null);
+  const seasonalDecoration = MONTHLY_LIBRARY_DECORATIONS[new Date().getMonth() + 1];
 
   const loadBooks = async () => {
     setIsLoading(true);
@@ -110,7 +126,9 @@ export function BookListScreen({ onOpenBook, themeStyles, wordsDb }) {
     <div className="h-full flex flex-col p-4 overflow-y-auto space-y-4">
       <div className={`flex items-center justify-between border-b pb-3 ${themeStyles.cardBg.includes('amber') ? 'border-amber-200' : themeStyles.cardBg.includes('slate') ? 'border-slate-200' : 'border-zinc-800'}`}>
         <div>
-          <h2 className={`text-lg font-bold ${themeStyles.textPrimary}`}>Library</h2>
+          <h2 className={`text-lg font-bold ${themeStyles.textPrimary}`}>
+            Library{seasonalDecoration && <span className="ml-1" aria-hidden="true">{seasonalDecoration}</span>}
+          </h2>
           <p className={`text-xs ${themeStyles.textMuted}`}>Offline database books</p>
         </div>
         
