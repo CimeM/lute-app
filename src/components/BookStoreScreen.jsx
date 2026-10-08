@@ -33,13 +33,15 @@ export function BookStoreScreen({ settings, themeStyles, onNotify }) {
   }, [settings.bookSources]);
 
   const books = useMemo(() => catalogs.flatMap(({ source, books: sourceBooks }) => (
-    sourceBooks.map((book) => ({ ...book, source }))
+    sourceBooks
+      .filter((book) => book.addToLibrary !== true)
+      .map((book) => ({ ...book, source }))
   )), [catalogs]);
 
   const languages = useMemo(() => [...new Set(books.map((book) => book.language).filter(Boolean))].sort(), [books]);
   const filteredBooks = books.filter((book) => {
     const query = search.trim().toLocaleLowerCase();
-    const matchesSearch = !query || [book.title, book.author, book.description, book.language]
+    const matchesSearch = !query || [book.title, book.author, book.description, book.language, ...(book.tags || [])]
       .some((value) => value?.toLocaleLowerCase().includes(query));
     return matchesSearch && (language === 'all' || book.language === language);
   });

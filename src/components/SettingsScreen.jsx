@@ -3,7 +3,7 @@ import { BookOpen, Download, HelpCircle, Plus, Smartphone, Trash2, Upload, X } f
 import packageInfo from "../../package.json";
 import { DEFAULT_BOOK_SOURCES } from "../utils/bookCatalog";
 
-export function SettingsScreen({ settings, onSaveSettings, onNotify, onExport, onImport, deferredPrompt, onClearPrompt }) {
+export function SettingsScreen({ settings, onSaveSettings, onNotify, onExport, onImport, deferredPrompt, isInstalledPwa, installInstructions, onClearPrompt }) {
   const [showHelp, setShowHelp] = useState(false);
   const [newSourceUrl, setNewSourceUrl] = useState('');
 
@@ -31,7 +31,7 @@ export function SettingsScreen({ settings, onSaveSettings, onNotify, onExport, o
 
   const handleInstall = async () => {
     if (!deferredPrompt) {
-      onNotify('Open Chrome menu and choose Install app or Add to Home screen.');
+      onNotify(installInstructions);
       return;
     }
 
@@ -41,7 +41,7 @@ export function SettingsScreen({ settings, onSaveSettings, onNotify, onExport, o
       onNotify(outcome === 'accepted' ? 'Lute is being installed.' : 'Installation was dismissed.');
     } catch (error) {
       console.error('Could not open the install prompt:', error);
-      onNotify('Open Chrome menu and choose Install app or Add to Home screen.', 'error');
+      onNotify(installInstructions, 'error');
     } finally {
       onClearPrompt?.();
     }
@@ -116,16 +116,18 @@ export function SettingsScreen({ settings, onSaveSettings, onNotify, onExport, o
         </details>
       </section>
 
-      <div>
-        <button
-          type="button"
-          onClick={handleInstall}
-          className="flex w-full items-center gap-3 rounded-md bg-amber-500 p-3 text-left text-sm font-semibold text-zinc-950 transition hover:bg-amber-400"
-        >
-          <Smartphone className="h-5 w-5" />
-          Install Lute PWA
-        </button>
-      </div>
+      {!isInstalledPwa && (
+        <div>
+          <button
+            type="button"
+            onClick={handleInstall}
+            className="flex w-full items-center gap-3 rounded-md bg-amber-500 p-3 text-left text-sm font-semibold text-zinc-950 transition hover:bg-amber-400"
+          >
+            <Smartphone className="h-5 w-5" />
+            Install Lute PWA
+          </button>
+        </div>
+      )}
 
       {/* Backup and Restore */}
       <div className="space-y-2 pt-4 border-t border-zinc-200 dark:border-zinc-800">

@@ -4,82 +4,92 @@
     {
       "id": "little-dragon-de",
       "title": "Das Abenteuer des kleinen Drachen",
-      "author": "Unknown",
+      "author": "Lute Reader",
       "description": "A short story about a little dragon, written in German.",
       "language": "de",
-      "file": "🇩🇪_das_abenteuer_des_kleinen_drachen.md"
+      "file": "🇩🇪_das_abenteuer_des_kleinen_drachen.md",
+      "addToLibrary": false
     },
     {
       "id": "little-dragon-es",
       "title": "La Aventura del Pequeño Dragón",
-      "author": "Unknown",
+      "author": "Lute Reader",
       "description": "A short story about a little dragon, written in Spanish.",
       "language": "es",
-      "file": "🇪🇸_la_aventura_del_peque_o_drag_n.md"
+      "file": "🇪🇸_la_aventura_del_peque_o_drag_n.md",
+      "addToLibrary": false
     },
     {
       "id": "little-dragon-fr",
       "title": "L'Aventure de Petit Dragon",
-      "author": "Unknown",
+      "author": "Lute Reader",
       "description": "A short story about a little dragon, written in French.",
       "language": "fr",
-      "file": "🇫🇷_l_aventure_du_petit_dragon.md"
+      "file": "🇫🇷_l_aventure_du_petit_dragon.md",
+      "addToLibrary": false
     },
     {
       "id": "little-dragon-hr",
       "title": "Pustolovina Malog Zmaja",
-      "author": "Unknown",
+      "author": "Lute Reader",
       "description": "A short story about a little dragon, written in Croatian.",
       "language": "hr",
-      "file": "🇭🇷_pustolovina_malog_zmaja.md"
+      "file": "🇭🇷_pustolovina_malog_zmaja.md",
+      "addToLibrary": false
     },
     {
       "id": "little-dragon-it",
       "title": "L'Avventura del Piccolo Drago",
-      "author": "Unknown",
+      "author": "Lute Reader",
       "description": "A short story about a little dragon, written in Italian.",
       "language": "it",
-      "file": "🇮🇹_l_avventura_del_piccolo_drago.md"
+      "file": "🇮🇹_l_avventura_del_piccolo_drago.md",
+      "addToLibrary": false
     },
     {
       "id": "little-dragon-nl",
       "title": "Het Avontuur van de Kleine Draak",
-      "author": "Unknown",
+      "author": "Lute Reader",
       "description": "A short story about a little dragon, written in Dutch.",
       "language": "nl",
-      "file": "🇳🇱_het_avontuur_van_de_kleine_draak.md"
+      "file": "🇳🇱_het_avontuur_van_de_kleine_draak.md",
+      "addToLibrary": false
     },
     {
       "id": "little-dragon-sr",
       "title": "Avantura Malog Zmaja",
-      "author": "Unknown",
+      "author": "Lute Reader",
       "description": "A short story about a little dragon, written in Serbian.",
       "language": "sr",
-      "file": "🇷🇸_avantura_malog_zmaja.md"
+      "file": "🇷🇸_avantura_malog_zmaja.md",
+      "addToLibrary": false
     },
     {
       "id": "little-dragon-ru",
       "title": "Приключение Маленького Дракона",
-      "author": "Unknown",
+      "author": "Lute Reader",
       "description": "A short story about a little dragon, written in Russian.",
       "language": "ru",
-      "file": "🇷🇺_code_artifact.md"
+      "file": "🇷🇺_code_artifact.md",
+      "addToLibrary": false
     },
     {
       "id": "little-dragon-sl",
       "title": "Dogodivščina Malega Zmaja",
-      "author": "Unknown",
+      "author": "Lute Reader",
       "description": "A short story about a little dragon, written in Slovenian.",
       "language": "sl",
-      "file": "🇸🇮_dogodiv_ina_malega_zmaja.md"
+      "file": "🇸🇮_dogodiv_ina_malega_zmaja.md",
+      "addToLibrary": false
     },
     {
       "id": "little-dragon-sk",
       "title": "Dobrodružstvo Malého Draka",
-      "author": "Unknown",
+      "author": "Lute Reader",
       "description": "A short story about a little dragon, written in Slovak.",
       "language": "sk",
-      "file": "🇸🇰_dobrodru_stvo_mal_ho_draka.md"
+      "file": "🇸🇰_dobrodru_stvo_mal_ho_draka.md",
+      "addToLibrary": false
     }
   ]
 }

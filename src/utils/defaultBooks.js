@@ -1,3 +1,5 @@
+import bundledCatalog from '../../books/index.json';
+
 const bundledBookAssets = import.meta.glob('/books/*.md', {
   eager: true,
   query: '?url',
@@ -54,7 +56,11 @@ export async function seedDefaultBooks(db) {
   const importedSources = getImportedSources();
   const existingBooks = await db.getAllBooks();
   const existingSources = new Set(existingBooks.map((book) => book.defaultBookPath).filter(Boolean));
-  const entries = Object.entries(bundledBookAssets).sort(([a], [b]) => a.localeCompare(b));
+  const entries = bundledCatalog.books
+    .filter((book) => book.addToLibrary === true && book.file)
+    .map((book) => [`/books/${book.file}`, bundledBookAssets[`/books/${book.file}`]])
+    .filter(([, assetUrl]) => assetUrl)
+    .sort(([a], [b]) => a.localeCompare(b));
   for (const [sourcePath, assetUrl] of entries) {
     if (importedSources.has(sourcePath)) continue;
 
