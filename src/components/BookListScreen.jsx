@@ -27,7 +27,7 @@ const MONTHLY_LIBRARY_DECORATIONS = {
   12: '🎄',
 };
 
-export function BookListScreen({ onOpenBook, themeStyles, wordsDb }) {
+export function BookListScreen({ onOpenBook, onLibraryLoaded, themeStyles, wordsDb }) {
   const [books, setBooks] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
@@ -40,7 +40,9 @@ export function BookListScreen({ onOpenBook, themeStyles, wordsDb }) {
       await db.ensureReady();
       await seedDefaultBooks(db);
       const list = await db.getAllBooks();
-      setBooks(list || []);
+      const loadedBooks = list || [];
+      setBooks(loadedBooks);
+      onLibraryLoaded?.(loadedBooks.length === 0);
     } catch (err) {
       console.error("Error loading books:", err);
     } finally {
@@ -129,7 +131,7 @@ export function BookListScreen({ onOpenBook, themeStyles, wordsDb }) {
           <h2 className={`text-lg font-bold ${themeStyles.textPrimary}`}>
             Library{seasonalDecoration && <span className="ml-1" aria-hidden="true">{seasonalDecoration}</span>}
           </h2>
-          <p className={`text-xs ${themeStyles.textMuted}`}>Offline database books</p>
+          <p className={`text-xs ${themeStyles.textMuted}`}>Offline database</p>
         </div>
         
         <button 

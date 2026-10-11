@@ -8,6 +8,10 @@ import { BookStoreScreen } from './components/BookStoreScreen';
 import { BookReaderScreen } from './components/BookReaderScreen';
 import { SettingsScreen } from './components/SettingsScreen';
 import { Notification } from './components/Notification';
+import { ReaderTutorial } from './components/ReaderTutorial';
+
+const READER_TUTORIAL_KEY = 'lute-reader-tutorial-complete';
+const APP_OPENED_KEY = 'lute-app-opened';
 
 const isRunningAsInstalledApp = () => {
   const displayModes = ['standalone', 'fullscreen', 'minimal-ui', 'window-controls-overlay'];
@@ -71,6 +75,26 @@ export default function App() {
   const [notification, setNotification] = useState(null);
   const [linkCopied, setLinkCopied] = useState(false);
   const [forceBrowserPrompt, setForceBrowserPrompt] = useState(false);
+  const [hasSeenReaderTutorial, setHasSeenReaderTutorial] = useState(() => {
+    try {
+      return localStorage.getItem(READER_TUTORIAL_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [isFirstAppOpen] = useState(() => {
+    try {
+      return localStorage.getItem(APP_OPENED_KEY) !== 'true';
+    } catch {
+      return true;
+    }
+  });
+  const [showReaderTutorial, setShowReaderTutorial] = useState(isFirstAppOpen);
+  const hasSeenReaderTutorialRef = useRef(hasSeenReaderTutorial);
+  const [isLibraryEmpty, setIsLibraryEmpty] = useState(false);
+  const [isLibraryPulseActive, setIsLibraryPulseActive] = useState(false);
+  const [libraryPulseSequence, setLibraryPulseSequence] = useState(0);
+  const libraryPulseTimeoutRef = useRef(null);
   const processedImportLink = useRef(false);
   const notify = useCallback((message, type = 'info') => {
     setNotification({ message, type });
@@ -102,6 +126,15 @@ export default function App() {
     : getInstallInstructions(installEnvironment);
   const isInstalledApp = isInstalledPwa || isRunningAsInstalledApp();
   const shouldShowExternalBrowserPrompt = installEnvironment.isEmbedded || forceBrowserPrompt;
+
+  useEffect(() => {
+    if (!settings || shouldShowExternalBrowserPrompt || !isFirstAppOpen) return;
+    try {
+      localStorage.setItem(APP_OPENED_KEY, 'true');
+    } catch {
+      // Keep the first-open decision for this session if storage is unavailable.
+    }
+  }, [settings, isFirstAppOpen, shouldShowExternalBrowserPrompt]);
 
   useEffect(() => {
     if (installEnvironment.isEmbedded || forceBrowserPrompt) return undefined;
@@ -276,8 +309,10 @@ export default function App() {
   };
 
   const openBook = async (id) => {
+    clearLibraryPulse();
     setActiveBookId(id);
     setCurrentScreen('reader');
+    if (!hasSeenReaderTutorial) setShowReaderTutorial(true);
     try {
       const book = await db.getBook(id);
       if (book && book.hasBeenOpened !== true) {
@@ -285,6 +320,39 @@ export default function App() {
       }
     } catch (error) {
       console.warn('Could not mark book as opened:', error);
+    }
+  };
+
+  const handleLibraryLoaded = (isEmpty) => {
+    setIsLibraryEmpty(isEmpty);
+    if (isEmpty && !hasSeenReaderTutorialRef.current) setShowReaderTutorial(true);
+  };
+
+  const handleStoreBookAdded = () => {
+    window.clearTimeout(libraryPulseTimeoutRef.current);
+    setIsLibraryEmpty(false);
+    setIsLibraryPulseActive(true);
+    setLibraryPulseSequence((sequence) => sequence + 1);
+    libraryPulseTimeoutRef.current = window.setTimeout(() => {
+      setIsLibraryPulseActive(false);
+      libraryPulseTimeoutRef.current = null;
+    }, 950);
+  };
+
+  const clearLibraryPulse = () => {
+    window.clearTimeout(libraryPulseTimeoutRef.current);
+    libraryPulseTimeoutRef.current = null;
+    setIsLibraryPulseActive(false);
+  };
+
+  const closeReaderTutorial = () => {
+    setShowReaderTutorial(false);
+    hasSeenReaderTutorialRef.current = true;
+    setHasSeenReaderTutorial(true);
+    try {
+      localStorage.setItem(READER_TUTORIAL_KEY, 'true');
+    } catch {
+      // Keep the tutorial dismissed for this session if storage is unavailable.
     }
   };
 
@@ -392,6 +460,7 @@ export default function App() {
         {currentScreen === 'books' && (
           <BookListScreen 
             onOpenBook={openBook}
+            onLibraryLoaded={handleLibraryLoaded}
             themeStyles={themeStyles}
             wordsDb={wordsDb}
           />
@@ -402,6 +471,7 @@ export default function App() {
             settings={settings}
             themeStyles={themeStyles}
             onNotify={notify}
+            onBookAdded={handleStoreBookAdded}
           />
         )}
         
@@ -433,6 +503,7 @@ export default function App() {
             isInstalledPwa={isInstalledPwa}
             installInstructions={installInstructions}
             onClearPrompt={() => setDeferredPrompt(null)}
+            onStartReaderTutorial={() => setShowReaderTutorial(true)}
             themeStyles={themeStyles}
           />
         )}
@@ -440,12 +511,17 @@ export default function App() {
 
       <Notification notification={notification} onDismiss={dismissNotification} />
 
+      {showReaderTutorial && (
+        <ReaderTutorial onClose={closeReaderTutorial} themeStyles={themeStyles} />
+      )}
+
 
       {currentScreen !== 'reader' && (
         <nav className={`bottom-nav border-t flex items-center justify-around z-20 px-2 transition-colors duration-200 ${themeStyles.navBg}`}>
           <button 
+            key={libraryPulseSequence}
             onClick={() => setCurrentScreen('books')}
-            className={`flex flex-col items-center gap-1 py-1 px-4 rounded-lg transition ${currentScreen === 'books' ? themeStyles.navActive : themeStyles.navInactive}`}
+            className={`relative flex flex-col items-center gap-1 py-1 px-4 rounded-lg transition ${isLibraryPulseActive ? 'library-new-book-pulse' : ''} ${currentScreen === 'books' ? themeStyles.navActive : themeStyles.navInactive}`}
           >
             <BookOpen className="w-5 h-5" />
             <span className="text-[10px] font-medium">Library</span>
@@ -453,7 +529,7 @@ export default function App() {
 
           <button
             onClick={() => setCurrentScreen('store')}
-            className={`flex flex-col items-center gap-1 py-1 px-4 rounded-lg transition ${currentScreen === 'store' ? themeStyles.navActive : themeStyles.navInactive}`}
+            className={`flex flex-col items-center gap-1 py-1 px-4 rounded-lg transition ${isLibraryEmpty && currentScreen !== 'store' && !showReaderTutorial ? 'reader-tutorial-target' : ''} ${currentScreen === 'store' ? themeStyles.navActive : themeStyles.navInactive}`}
           >
             <Store className="w-5 h-5" />
             <span className="text-[10px] font-medium">Store</span>

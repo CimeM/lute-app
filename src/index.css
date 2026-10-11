@@ -45,6 +45,40 @@ html.dark {
   animation: install-reminder-enter 180ms ease-out;
 }
 
+.reader-tutorial-enter {
+  animation: reader-tutorial-enter 180ms ease-out;
+}
+
+.reader-tutorial-target {
+  isolation: isolate;
+  position: relative;
+}
+
+.reader-tutorial-target::after {
+  position: absolute;
+  inset: -7px;
+  border: 2px solid #f59e0b;
+  border-radius: 9999px;
+  content: '';
+  pointer-events: none;
+  animation: reader-tutorial-pulse 1.35s ease-out infinite;
+}
+
+.library-new-book-pulse {
+  isolation: isolate;
+}
+
+.library-new-book-pulse::after {
+  position: absolute;
+  inset: -7px;
+  border: 2px solid #f59e0b;
+  border-radius: 9999px;
+  content: '';
+  opacity: 0;
+  pointer-events: none;
+  animation: library-new-book-pulse 900ms ease-out 1 both;
+}
+
 @keyframes reader-page-enter {
   from { opacity: 0.7; transform: translateY(5px); }
   to { opacity: 1; transform: translateY(0); }
@@ -55,9 +89,30 @@ html.dark {
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes reader-tutorial-enter {
+  from { opacity: 0; transform: translateY(8px) scale(0.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes reader-tutorial-pulse {
+  0% { opacity: 0.9; transform: scale(0.94); }
+  75%, 100% { opacity: 0; transform: scale(1.16); }
+}
+
+@keyframes library-new-book-pulse {
+  0% { opacity: 0.9; transform: scale(0.94); }
+  100% { opacity: 0; transform: scale(1.16); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .reader-page-enter,
-  .install-reminder {
+  .install-reminder,
+  .reader-tutorial-enter,
+  .reader-tutorial-target::after {
+    animation: none;
+  }
+
+  .library-new-book-pulse::after {
     animation: none;
   }
 }

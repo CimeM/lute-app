@@ -3,7 +3,7 @@ import { Check, Copy, Download, ExternalLink, Folder, Search } from 'lucide-reac
 import { db } from '../db/LocalDB';
 import { fetchBookCatalog, importCatalogBook } from '../utils/bookCatalog';
 
-export function BookStoreScreen({ settings, themeStyles, onNotify }) {
+export function BookStoreScreen({ settings, themeStyles, onNotify, onBookAdded }) {
   const [catalogs, setCatalogs] = useState([]);
   const [libraryBooks, setLibraryBooks] = useState([]);
   const [search, setSearch] = useState('');
@@ -58,6 +58,7 @@ export function BookStoreScreen({ settings, themeStyles, onNotify }) {
       await importCatalogBook(book.source, book);
       setLibraryBooks(await db.getAllBooks());
       onNotify(`Added “${book.title}” to your library.`, 'success');
+      onBookAdded?.();
     } catch {
       onNotify(`Could not download “${book.title}”. Check your connection and try again.`, 'error');
     } finally {

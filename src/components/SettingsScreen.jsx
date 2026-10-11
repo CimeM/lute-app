@@ -4,7 +4,7 @@ import packageInfo from "../../package.json";
 import { DEFAULT_BOOK_SOURCES } from "../utils/bookCatalog";
 import { READER_BACKGROUND_OPTIONS } from "../utils/theme";
 
-export function SettingsScreen({ settings, onSaveSettings, onNotify, onExport, onImport, deferredPrompt, isInstalledPwa, installInstructions, onClearPrompt, themeStyles }) {
+export function SettingsScreen({ settings, onSaveSettings, onNotify, onExport, onImport, deferredPrompt, isInstalledPwa, installInstructions, onClearPrompt, onStartReaderTutorial, themeStyles }) {
   const [showHelp, setShowHelp] = useState(false);
   const [newSourceUrl, setNewSourceUrl] = useState('');
   const [speechVoices, setSpeechVoices] = useState([]);
@@ -134,6 +134,15 @@ export function SettingsScreen({ settings, onSaveSettings, onNotify, onExport, o
           </p>
         </div>
       </section>
+
+      <button
+        type="button"
+        onClick={onStartReaderTutorial}
+        className="flex w-full items-center gap-3 rounded-md border border-zinc-300 bg-white p-3 text-left text-sm font-medium text-zinc-900 transition hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700"
+      >
+        <BookOpen className="h-5 w-5" />
+        Reader tutorial
+      </button>
 
       <button
         type="button"
