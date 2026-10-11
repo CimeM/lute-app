@@ -475,11 +475,9 @@ export function BookReaderScreen({ bookId, wordsDb, onUpdateWord, settings, onBa
           <div className="flex items-center justify-between mb-2">
             <span className="font-bold text-lg capitalize">{selectedWord.text}</span>
             <div className="flex items-center gap-1">
-              {canSpeakWords && (
-                <button type="button" onClick={playSelectedWord} aria-label={`Play pronunciation of ${selectedWord.text}`} title="Play pronunciation" className="rounded p-1 text-zinc-400 transition hover:bg-zinc-800/20 hover:text-zinc-900 active:scale-95 dark:hover:text-zinc-100">
-                  <Play className="w-4 h-4" />
-                </button>
-              )}
+              <button type="button" onClick={playSelectedWord} disabled={!canSpeakWords} aria-label={`Play pronunciation of ${selectedWord.text}`} title={canSpeakWords ? 'Play pronunciation' : 'Speech synthesis is unavailable in this browser'} className="rounded p-1 text-zinc-400 transition hover:bg-zinc-800/20 hover:text-zinc-900 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:text-zinc-100">
+                <Play className="w-4 h-4" />
+              </button>
               <button type="button" onClick={closeWordSheet} aria-label="Close word details" title="Close" className="rounded p-1 text-zinc-400 transition hover:bg-zinc-800/20 hover:text-zinc-900 active:scale-95 dark:hover:text-zinc-100">
                 <X className="w-4 h-4" />
               </button>
