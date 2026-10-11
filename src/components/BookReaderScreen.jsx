@@ -212,6 +212,14 @@ export function BookReaderScreen({ bookId, wordsDb, onUpdateWord, settings, onBa
   };
 
   const playSelectedWord = () => {
+    const isEmbeddedBrowser = typeof window !== 'undefined'
+      && (window.self !== window.top || /FBAN|FBAV|Instagram|Twitter|TikTok|Snapchat|LinkedInApp|; wv\)/i.test(navigator.userAgent));
+
+    if (isEmbeddedBrowser) {
+      onRequireExternalBrowser?.();
+      return;
+    }
+
     if (!canSpeakWords || !selectedWord?.text) return;
     const utterance = new window.SpeechSynthesisUtterance(selectedWord.text);
     const voices = window.speechSynthesis.getVoices();

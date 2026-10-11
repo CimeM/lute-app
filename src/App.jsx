@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { BookOpen, Copy, Settings, Smartphone, Store, X } from 'lucide-react';
+import { BookOpen, Copy, ExternalLink, Settings, Smartphone, Store, X } from 'lucide-react';
 import { db, DEFAULT_GITHUB_REPO } from './db/LocalDB';
 import { useResolvedTheme, getThemeStyles } from './utils/theme';
 import { DEFAULT_BOOK_SOURCES, fetchBookCatalog, importCatalogBook } from './utils/bookCatalog';
@@ -69,11 +69,30 @@ export default function App() {
   const [isInstalledPwa, setIsInstalledPwa] = useState(installEnvironment.isStandalone);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [notification, setNotification] = useState(null);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [forceBrowserPrompt, setForceBrowserPrompt] = useState(false);
   const processedImportLink = useRef(false);
   const notify = useCallback((message, type = 'info') => {
     setNotification({ message, type });
   }, []);
   const dismissNotification = useCallback(() => setNotification(null), []);
+  const openInBrowserHref = typeof window === 'undefined'
+    ? ''
+    : installEnvironment.isAndroid
+      ? `intent://${window.location.host}${window.location.pathname}${window.location.search}${window.location.hash}#Intent;scheme=https;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;end`
+      : window.location.href;
+  const browserName = installEnvironment.isIOS ? 'Safari' : installEnvironment.isAndroid ? 'your browser' : 'a regular browser';
+
+  const copyPageLink = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(openInBrowserHref);
+      setLinkCopied(true);
+      notify(`Link copied. Open it in ${browserName} to continue.`, 'success');
+      window.setTimeout(() => setLinkCopied(false), 2000);
+    } catch {
+      notify(`Copy this page URL and open it in ${browserName}.`, 'error');
+    }
+  }, [browserName, notify, openInBrowserHref]);
 
   const activeThemeSetting = settings?.readerTheme || 'system';
   const effectiveTheme = useResolvedTheme(activeThemeSetting);
@@ -82,21 +101,20 @@ export default function App() {
     ? 'Add Lute to your device with the install prompt below.'
     : getInstallInstructions(installEnvironment);
   const isInstalledApp = isInstalledPwa || isRunningAsInstalledApp();
+  const shouldShowExternalBrowserPrompt = installEnvironment.isEmbedded || forceBrowserPrompt;
 
   useEffect(() => {
+    if (installEnvironment.isEmbedded || forceBrowserPrompt) return undefined;
     if (!settings || isInstalledApp || isInstallDismissed) return undefined;
-    const isNativeInstallBrowser = !installEnvironment.isEmbedded
-      && ['Safari', 'Chrome'].includes(installEnvironment.browser);
-    const reminderDelay = isNativeInstallBrowser ? 20_000 : 60_000;
     const timeoutId = window.setTimeout(() => {
       if (isRunningAsInstalledApp()) {
         setIsInstalledPwa(true);
         return;
       }
       setShowInstallReminder(true);
-    }, reminderDelay);
+    }, 30_000);
     return () => window.clearTimeout(timeoutId);
-  }, [settings, isInstalledPwa, isInstalledApp, isInstallDismissed, installEnvironment]);
+  }, [settings, isInstalledPwa, isInstalledApp, isInstallDismissed, installEnvironment, forceBrowserPrompt]);
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', effectiveTheme === 'dark');
@@ -313,6 +331,53 @@ export default function App() {
     }
   };
 
+  if (shouldShowExternalBrowserPrompt) {
+    return (
+      <div className={`min-h-screen w-full flex items-center justify-center px-4 py-8 ${themeStyles.bodyBg}`}>
+        <div className={`w-full max-w-md rounded-2xl border p-5 shadow-xl backdrop-blur-sm ${themeStyles.modalBg}`}>
+          <div className="mb-4 flex items-center gap-3">
+            <img src="/icons/icon-192.png" alt="" className="h-10 w-10 rounded-lg object-cover" />
+            <div>
+              <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-zinc-500">Lute app</p>
+              <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">Open in {browserName}</h1>
+            </div>
+          </div>
+
+          <p className="mb-5 text-sm leading-relaxed text-zinc-600 dark:text-zinc-300">
+            This app&apos;s built-in browser can interrupt reading. Open the page in a regular browser to keep going.
+          </p>
+
+          <div className="space-y-3">
+            <a
+              href={openInBrowserHref}
+              target={installEnvironment.isAndroid ? undefined : '_blank'}
+              rel="noreferrer"
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-zinc-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+            >
+              <ExternalLink className="h-4 w-4" aria-hidden="true" />
+              Try opening in {browserName}
+            </a>
+
+            <button
+              type="button"
+              onClick={copyPageLink}
+              className={`flex w-full items-center justify-center gap-2 rounded-lg border px-4 py-3 text-sm font-semibold transition ${themeStyles.navInactive}`}
+            >
+              <Copy className="h-4 w-4" aria-hidden="true" />
+              {linkCopied ? 'Link copied' : 'Copy page link'}
+            </button>
+          </div>
+
+          <p className="mt-4 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
+            {installEnvironment.isIOS
+              ? 'If it stays here, tap the menu or share button and choose “Open in Safari”.'
+              : 'If it stays here, tap the menu and choose “Open in browser” or copy the link into your browser.'}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   if (!settings) {
     return (
       <div className={`h-dvh w-screen flex items-center justify-center font-mono text-xs ${themeStyles.bodyBg}`}>
@@ -350,6 +415,7 @@ export default function App() {
               setActiveBookId(null);
               setCurrentScreen('books');
             }}
+            onRequireExternalBrowser={() => setForceBrowserPrompt(true)}
             themeStyles={themeStyles}
           />
         )}
@@ -374,41 +440,6 @@ export default function App() {
 
       <Notification notification={notification} onDismiss={dismissNotification} />
 
-      {showInstallReminder && !isInstalledApp && (
-        <aside
-          className="install-reminder fixed inset-x-3 z-40 mx-auto max-w-md rounded-lg border border-amber-500/40 bg-white p-3 text-zinc-900 shadow-xl dark:bg-zinc-900 dark:text-zinc-100"
-          style={{ bottom: currentScreen === 'reader' ? 'calc(12px + env(safe-area-inset-bottom))' : 'calc(3.5rem + env(safe-area-inset-bottom) + 12px)' }}
-          aria-label="Install Lute"
-        >
-          <div className="flex items-start gap-3">
-            <Smartphone className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center justify-between gap-2">
-                <h2 className="text-sm font-semibold">Install Lute?</h2>
-                <button type="button" onClick={dismissInstallReminder} aria-label="Dismiss install reminder" title="Dismiss" className="rounded p-1 text-zinc-500 transition hover:bg-zinc-100 active:scale-95 dark:hover:bg-zinc-800">
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-              <p className="mt-1 text-xs leading-relaxed text-zinc-600 dark:text-zinc-300">{installInstructions}</p>
-              <div className="mt-2 flex justify-end">
-                {installEnvironment.isEmbedded ? (
-                  <button type="button" onClick={handleCopyAppLink} className="inline-flex items-center gap-1.5 rounded-md bg-amber-500 px-3 py-1.5 text-xs font-semibold text-zinc-950 transition hover:bg-amber-400 active:scale-95">
-                    <Copy className="h-3.5 w-3.5" /> Copy link for {installEnvironment.isIOS ? 'Safari' : 'Chrome'}
-                  </button>
-                ) : deferredPrompt ? (
-                  <button type="button" onClick={handleInstallAction} className="inline-flex items-center gap-1.5 rounded-md bg-amber-500 px-3 py-1.5 text-xs font-semibold text-zinc-950 transition hover:bg-amber-400 active:scale-95">
-                    <Smartphone className="h-3.5 w-3.5" /> Install
-                  </button>
-                ) : (
-                  <button type="button" onClick={dismissInstallReminder} className="rounded-md px-3 py-1.5 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-100 active:scale-95 dark:text-zinc-200 dark:hover:bg-zinc-800">
-                    Got it
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </aside>
-      )}
 
       {currentScreen !== 'reader' && (
         <nav className={`bottom-nav border-t flex items-center justify-around z-20 px-2 transition-colors duration-200 ${themeStyles.navBg}`}>
@@ -436,6 +467,28 @@ export default function App() {
             <span className="text-[10px] font-medium">Settings</span>
           </button>
         </nav>
+      )}
+
+      {showInstallReminder && !isInstalledApp && !installEnvironment.isEmbedded && (
+        <div className={`fixed bottom-20 left-3 right-3 z-30 mx-auto flex max-w-md items-center gap-3 rounded-lg border p-3 shadow-lg ${themeStyles.modalBg}`}>
+          <Smartphone className="h-5 w-5 shrink-0 text-amber-500" aria-hidden="true" />
+          <span className="min-w-0 flex-1 text-sm font-medium text-zinc-900 dark:text-zinc-100">Install Lute?</span>
+          <button
+            type="button"
+            onClick={handleInstallAction}
+            className="rounded-md bg-amber-500 px-3 py-2 text-sm font-semibold text-zinc-950 hover:bg-amber-400"
+          >
+            Install
+          </button>
+          <button
+            type="button"
+            onClick={dismissInstallReminder}
+            className="rounded p-1 text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+            aria-label="Dismiss install prompt"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
       )}
     </div>
   );
