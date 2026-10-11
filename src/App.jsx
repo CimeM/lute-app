@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { BookOpen, Copy, ExternalLink, Settings, Smartphone, Store, X } from 'lucide-react';
+import { BookOpen, Copy, Settings, Smartphone, Store, X } from 'lucide-react';
 import { db, DEFAULT_GITHUB_REPO } from './db/LocalDB';
 import { useResolvedTheme, getThemeStyles } from './utils/theme';
 import { DEFAULT_BOOK_SOURCES, fetchBookCatalog, importCatalogBook } from './utils/bookCatalog';
@@ -9,15 +9,20 @@ import { BookReaderScreen } from './components/BookReaderScreen';
 import { SettingsScreen } from './components/SettingsScreen';
 import { Notification } from './components/Notification';
 
+const isRunningAsInstalledApp = () => {
+  const displayModes = ['standalone', 'fullscreen', 'minimal-ui', 'window-controls-overlay'];
+  return displayModes.some((mode) => window.matchMedia?.(`(display-mode: ${mode})`).matches)
+    || navigator.standalone === true;
+};
+
 const getInstallEnvironment = () => {
   const userAgent = navigator.userAgent || '';
   const isIOS = /iPad|iPhone|iPod/i.test(userAgent)
     || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isAndroid = /Android/i.test(userAgent);
   const isEmbedded = window.self !== window.top
     || /FBAN|FBAV|Instagram|Twitter|TikTok|Snapchat|LinkedInApp|; wv\)/i.test(userAgent);
-  const displayModes = ['standalone', 'fullscreen', 'minimal-ui', 'window-controls-overlay'];
-  const isStandalone = displayModes.some((mode) => window.matchMedia?.(`(display-mode: ${mode})`).matches)
-    || navigator.standalone === true;
+  const isStandalone = isRunningAsInstalledApp();
   let browser = 'this browser';
 
   if (/Edg\//i.test(userAgent)) browser = 'Edge';
@@ -27,11 +32,17 @@ const getInstallEnvironment = () => {
   else if (/FxiOS|Firefox\//i.test(userAgent)) browser = 'Firefox';
   else if (/Safari\//i.test(userAgent)) browser = 'Safari';
 
-  return { browser, isEmbedded, isIOS, isStandalone };
+  return { browser, isEmbedded, isIOS, isAndroid, isStandalone };
 };
 
-const getInstallInstructions = ({ browser, isEmbedded, isIOS }) => {
-  if (isEmbedded) return 'Use the system share sheet to open this page in Safari or Chrome. If unavailable, copy the URL and paste it there.';
+const getInstallInstructions = ({ browser, isEmbedded, isIOS, isAndroid }) => {
+  if (isEmbedded && isIOS) {
+    return 'In Instagram, tap the three-dot menu, then choose Open in Safari or Open in external browser. If that option is missing, copy the link below and paste it into Safari.';
+  }
+  if (isEmbedded && isAndroid) {
+    return 'In Instagram, tap the three-dot menu, then choose Open in Chrome or Open in external browser. If that option is missing, copy the link below and paste it into Chrome.';
+  }
+  if (isEmbedded) return 'Open the in-app browser menu and choose Open in external browser. Otherwise, copy the link below and paste it into Chrome or Safari.';
   if (isIOS) return 'In Safari, tap Share, then choose Add to Home Screen.';
   if (browser === 'Safari') return 'In Safari, choose File, then Add to Dock.';
   if (['Chrome', 'Edge', 'Opera', 'Samsung Internet'].includes(browser)) {
@@ -70,12 +81,22 @@ export default function App() {
   const installInstructions = deferredPrompt
     ? 'Add Lute to your device with the install prompt below.'
     : getInstallInstructions(installEnvironment);
+  const isInstalledApp = isInstalledPwa || isRunningAsInstalledApp();
 
   useEffect(() => {
-    if (!settings || isInstalledPwa || isInstallDismissed) return undefined;
-    const timeoutId = window.setTimeout(() => setShowInstallReminder(true), 60_000);
+    if (!settings || isInstalledApp || isInstallDismissed) return undefined;
+    const isNativeInstallBrowser = !installEnvironment.isEmbedded
+      && ['Safari', 'Chrome'].includes(installEnvironment.browser);
+    const reminderDelay = isNativeInstallBrowser ? 20_000 : 60_000;
+    const timeoutId = window.setTimeout(() => {
+      if (isRunningAsInstalledApp()) {
+        setIsInstalledPwa(true);
+        return;
+      }
+      setShowInstallReminder(true);
+    }, reminderDelay);
     return () => window.clearTimeout(timeoutId);
-  }, [settings, isInstalledPwa, isInstallDismissed]);
+  }, [settings, isInstalledPwa, isInstalledApp, isInstallDismissed, installEnvironment]);
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', effectiveTheme === 'dark');
@@ -119,6 +140,10 @@ export default function App() {
     const handleOffline = () => setIsOnline(false);
     const handleInstallPrompt = (e) => {
       e.preventDefault();
+      if (isRunningAsInstalledApp()) {
+        setIsInstalledPwa(true);
+        return;
+      }
       setDeferredPrompt(e);
     };
     const handleAppInstalled = () => {
@@ -130,7 +155,7 @@ export default function App() {
     const displayModeQueries = ['standalone', 'fullscreen', 'minimal-ui', 'window-controls-overlay']
       .map((mode) => window.matchMedia(`(display-mode: ${mode})`));
     const handleDisplayModeChange = () => {
-      if (displayModeQueries.some((query) => query.matches) || navigator.standalone === true) {
+      if (isRunningAsInstalledApp()) {
         handleAppInstalled();
       }
     };
@@ -255,33 +280,18 @@ export default function App() {
     setIsInstallDismissed(true);
   };
 
-  const handleOpenInBrowser = async () => {
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: 'Lute', url: window.location.href });
-        return;
-      } catch (error) {
-        if (error.name === 'AbortError') return;
-      }
-    }
-
+  const handleCopyAppLink = async () => {
     try {
       await navigator.clipboard.writeText(window.location.href);
-      notify('URL copied. Paste it into Safari or Chrome to open outside this preview.', 'success');
+      notify(`Link copied. Paste it into ${installEnvironment.isIOS ? 'Safari' : 'Chrome'} to open Lute outside this preview.`, 'success');
     } catch {
-      notify('Copy the page address and paste it into Safari or Chrome.', 'error');
+      notify(installInstructions, 'error');
     }
   };
 
   const handleInstallAction = async () => {
     if (installEnvironment.isEmbedded) {
-      try {
-        await navigator.clipboard.writeText(window.location.href);
-        notify('URL copied. Paste it into Safari or Chrome to install Lute.', 'success');
-      } catch {
-        notify(installInstructions);
-      }
-      return;
+      return handleCopyAppLink();
     }
 
     if (!deferredPrompt) {
@@ -364,7 +374,7 @@ export default function App() {
 
       <Notification notification={notification} onDismiss={dismissNotification} />
 
-      {showInstallReminder && !isInstalledPwa && (
+      {showInstallReminder && !isInstalledApp && (
         <aside
           className="install-reminder fixed inset-x-3 z-40 mx-auto max-w-md rounded-lg border border-amber-500/40 bg-white p-3 text-zinc-900 shadow-xl dark:bg-zinc-900 dark:text-zinc-100"
           style={{ bottom: currentScreen === 'reader' ? 'calc(12px + env(safe-area-inset-bottom))' : 'calc(3.5rem + env(safe-area-inset-bottom) + 12px)' }}
@@ -382,14 +392,9 @@ export default function App() {
               <p className="mt-1 text-xs leading-relaxed text-zinc-600 dark:text-zinc-300">{installInstructions}</p>
               <div className="mt-2 flex justify-end">
                 {installEnvironment.isEmbedded ? (
-                  <>
-                    <button type="button" onClick={handleOpenInBrowser} className="inline-flex items-center gap-1.5 rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-semibold text-zinc-800 transition hover:bg-zinc-100 active:scale-95 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800">
-                      <ExternalLink className="h-3.5 w-3.5" /> {navigator.share ? 'Choose browser' : 'Copy link'}
-                    </button>
-                    <button type="button" onClick={handleInstallAction} className="inline-flex items-center gap-1.5 rounded-md bg-amber-500 px-3 py-1.5 text-xs font-semibold text-zinc-950 transition hover:bg-amber-400 active:scale-95">
-                      <Copy className="h-3.5 w-3.5" /> Copy URL
-                    </button>
-                  </>
+                  <button type="button" onClick={handleCopyAppLink} className="inline-flex items-center gap-1.5 rounded-md bg-amber-500 px-3 py-1.5 text-xs font-semibold text-zinc-950 transition hover:bg-amber-400 active:scale-95">
+                    <Copy className="h-3.5 w-3.5" /> Copy link for {installEnvironment.isIOS ? 'Safari' : 'Chrome'}
+                  </button>
                 ) : deferredPrompt ? (
                   <button type="button" onClick={handleInstallAction} className="inline-flex items-center gap-1.5 rounded-md bg-amber-500 px-3 py-1.5 text-xs font-semibold text-zinc-950 transition hover:bg-amber-400 active:scale-95">
                     <Smartphone className="h-3.5 w-3.5" /> Install
