@@ -31,7 +31,7 @@ const getInstallEnvironment = () => {
 };
 
 const getInstallInstructions = ({ browser, isEmbedded, isIOS }) => {
-  if (isEmbedded) return 'Open this link in Safari or Chrome first; in-app browsers may not support installation.';
+  if (isEmbedded) return 'Use the system share sheet to open this page in Safari or Chrome. If unavailable, copy the URL and paste it there.';
   if (isIOS) return 'In Safari, tap Share, then choose Add to Home Screen.';
   if (browser === 'Safari') return 'In Safari, choose File, then Add to Dock.';
   if (['Chrome', 'Edge', 'Opera', 'Samsung Internet'].includes(browser)) {
@@ -78,6 +78,7 @@ export default function App() {
   }, [settings, isInstalledPwa, isInstallDismissed]);
 
   useEffect(() => {
+    document.documentElement.classList.toggle('dark', effectiveTheme === 'dark');
     document.body.className = `h-dvh overflow-hidden flex flex-col transition-colors duration-200 ${themeStyles.bodyBg}`;
   }, [effectiveTheme, themeStyles.bodyBg]);
 
@@ -103,6 +104,8 @@ export default function App() {
             key: 'user_config',
             username: '',
             readerTheme: 'system',
+            readerBackground: 'theme',
+            speechVoiceURI: '',
             githubRepo: DEFAULT_GITHUB_REPO,
             bookSources: DEFAULT_BOOK_SOURCES,
             enableSync: false,
@@ -252,11 +255,29 @@ export default function App() {
     setIsInstallDismissed(true);
   };
 
+  const handleOpenInBrowser = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'Lute', url: window.location.href });
+        return;
+      } catch (error) {
+        if (error.name === 'AbortError') return;
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      notify('URL copied. Paste it into Safari or Chrome to open outside this preview.', 'success');
+    } catch {
+      notify('Copy the page address and paste it into Safari or Chrome.', 'error');
+    }
+  };
+
   const handleInstallAction = async () => {
     if (installEnvironment.isEmbedded) {
       try {
         await navigator.clipboard.writeText(window.location.href);
-        notify('URL copied. Open it in Safari or Chrome to install Lute.', 'success');
+        notify('URL copied. Paste it into Safari or Chrome to install Lute.', 'success');
       } catch {
         notify(installInstructions);
       }
@@ -362,9 +383,9 @@ export default function App() {
               <div className="mt-2 flex justify-end">
                 {installEnvironment.isEmbedded ? (
                   <>
-                    <a href={window.location.href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-semibold text-zinc-800 transition hover:bg-zinc-100 active:scale-95 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800">
-                      <ExternalLink className="h-3.5 w-3.5" /> Open in browser
-                    </a>
+                    <button type="button" onClick={handleOpenInBrowser} className="inline-flex items-center gap-1.5 rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-semibold text-zinc-800 transition hover:bg-zinc-100 active:scale-95 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800">
+                      <ExternalLink className="h-3.5 w-3.5" /> {navigator.share ? 'Choose browser' : 'Copy link'}
+                    </button>
                     <button type="button" onClick={handleInstallAction} className="inline-flex items-center gap-1.5 rounded-md bg-amber-500 px-3 py-1.5 text-xs font-semibold text-zinc-950 transition hover:bg-amber-400 active:scale-95">
                       <Copy className="h-3.5 w-3.5" /> Copy URL
                     </button>

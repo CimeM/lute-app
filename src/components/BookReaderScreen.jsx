@@ -1,7 +1,34 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { ArrowLeft, ChevronLeft, ChevronRight, Play, X } from 'lucide-react';
+import { marked } from 'marked';
 import { db } from '../db/LocalDB';
 import { chunkTextIntoPagesAsync, splitTextPageInHalf } from '../utils/epubParser';
+import { getReaderBackgroundStyles } from '../utils/theme';
+
+const splitMarkdownTableRow = (line) => {
+  let row = line.trim();
+  if (row.startsWith('|')) row = row.slice(1);
+  if (row.endsWith('|') && !row.endsWith('\\|')) row = row.slice(0, -1);
+
+  const cells = [];
+  let cell = '';
+  for (let index = 0; index < row.length; index++) {
+    if (row[index] === '\\' && row[index + 1] === '|') {
+      cell += '|';
+      index++;
+    } else if (row[index] === '|') {
+      cells.push(cell.trim());
+      cell = '';
+    } else {
+      cell += row[index];
+    }
+  }
+  cells.push(cell.trim());
+  return cells;
+};
+
+const isMarkdownTableSeparator = (line) =>
+  line.includes('|') && splitMarkdownTableRow(line).every((cell) => /^:?-{3,}:?$/.test(cell));
 
 export function BookReaderScreen({ bookId, wordsDb, onUpdateWord, settings, onBack, themeStyles }) {
   const [book, setBook] = useState(null);
@@ -17,6 +44,7 @@ export function BookReaderScreen({ bookId, wordsDb, onUpdateWord, settings, onBa
   const [translationError, setTranslationError] = useState('');
   const [popupPosition, setPopupPosition] = useState('bottom');
   const [fontSize, setFontSize] = useState(18);
+  const readerBackgroundStyles = getReaderBackgroundStyles(settings?.readerBackground || 'theme', themeStyles);
   const pageContainerRef = useRef(null);
   const pageContentRef = useRef(null);
   const canSpeakWords = typeof window !== 'undefined'
@@ -186,7 +214,21 @@ export function BookReaderScreen({ bookId, wordsDb, onUpdateWord, settings, onBa
   const playSelectedWord = () => {
     if (!canSpeakWords || !selectedWord?.text) return;
     const utterance = new window.SpeechSynthesisUtterance(selectedWord.text);
-    if (book?.language) utterance.lang = book.language;
+    const voices = window.speechSynthesis.getVoices();
+    const language = book?.language?.toLowerCase().replace('_', '-');
+    const matchesBookLanguage = (voice) => !language
+      || voice.lang.toLowerCase().split('-')[0] === language.split('-')[0];
+    const selectedVoice = voices.find((voice) => voice.voiceURI === settings?.speechVoiceURI);
+    const voice = selectedVoice && matchesBookLanguage(selectedVoice)
+      ? selectedVoice
+      : language && voices.find((candidate) => matchesBookLanguage(candidate));
+
+    if (voice) {
+      utterance.voice = voice;
+      utterance.lang = book?.language || voice.lang;
+    } else if (book?.language) {
+      utterance.lang = book.language;
+    }
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utterance);
   };
@@ -237,28 +279,106 @@ export function BookReaderScreen({ bookId, wordsDb, onUpdateWord, settings, onBa
   const renderedContent = useMemo(() => {
     const pageText = pages[currentPage] || '';
     if (!pageText) return null;
-    const tokens = pageText.match(/[\p{L}\p{M}\p{N}]+|[^\p{L}\p{M}\p{N}]+/gu) || [];
+    const lines = pageText.split(/\r?\n/);
+    const renderWords = (text) => {
+      const tokens = text.match(/[\p{L}\p{M}\p{N}]+|[^\p{L}\p{M}\p{N}]+/gu) || [];
+      return tokens.map((token, index) => {
+        if (!/[\p{L}\p{M}\p{N}]/u.test(token)) return <span key={index}>{token}</span>;
 
-    return tokens.map((token, index) => {
-      const isWord = /[\p{L}\p{M}\p{N}]/u.test(token);
-      if (!isWord) {
-        return <span key={index}>{token}</span>;
+        const normalized = token.toLowerCase();
+        const wordObj = wordsDb[normalized];
+        const statusClass = wordObj?.status ? `word-status-${wordObj.status}` : '';
+        return (
+          <span
+            key={index}
+            onClick={(event) => handleWordClick(event, token)}
+            className={`cursor-pointer inline-block rounded-sm px-0.5 transition ${statusClass}`}
+          >
+            {token}
+          </span>
+        );
+      });
+    };
+    const renderInlineTokens = (tokens) => tokens.map((token, index) => {
+      if (token.type === 'strong' || token.type === 'em') {
+        const Tag = token.type === 'strong' ? 'strong' : 'em';
+        return <Tag key={index}>{renderInlineTokens(token.tokens || [])}</Tag>;
+      }
+      return <React.Fragment key={index}>{renderWords(token.text ?? token.raw ?? '')}</React.Fragment>;
+    });
+    const renderInlineMarkdown = (text) => {
+      const blocks = marked.lexer(text, { gfm: false });
+      return renderInlineTokens(blocks.flatMap((block) => block.tokens || [block]));
+    };
+
+    const renderedLines = [];
+    for (let index = 0; index < lines.length;) {
+      const line = lines[index];
+      const heading = line.match(/^ {0,3}(#{1,6})[ \t]+(.+?)[ \t]*#*[ \t]*$/);
+      if (heading) {
+        const Heading = `h${heading[1].length}`;
+        const headingSize = ['text-[1.6em]', 'text-[1.4em]', 'text-[1.2em]', 'text-[1.1em]', 'text-[1em]', 'text-[1em]'][heading[1].length - 1];
+        renderedLines.push(
+          <Heading key={index} className={`my-3 font-bold leading-tight ${headingSize}`}>
+            {renderInlineMarkdown(heading[2])}
+          </Heading>
+        );
+        index++;
+        continue;
       }
 
-      const normalized = token.toLowerCase();
-      const wordObj = wordsDb[normalized];
-      const statusClass = wordObj?.status ? `word-status-${wordObj.status}` : '';
+      if (line.includes('|')) {
+        const tableRows = [];
+        while (index < lines.length && lines[index].includes('|')) {
+          tableRows.push(lines[index]);
+          index++;
+        }
+        const separatorIndex = tableRows.findIndex(isMarkdownTableSeparator);
+        const headerCells = separatorIndex === 1 ? splitMarkdownTableRow(tableRows[0]) : null;
+        const bodyRows = tableRows
+          .filter((_, rowIndex) => rowIndex !== separatorIndex && rowIndex !== (headerCells ? 0 : -1))
+          .map(splitMarkdownTableRow);
 
-      return (
-        <span
-          key={index}
-          onClick={(e) => handleWordClick(e, token)}
-          className={`cursor-pointer inline-block rounded-sm px-0.5 transition ${statusClass}`}
-        >
-          {token}
-        </span>
+        renderedLines.push(
+          <div key={`table-${index}`} className="my-3 max-w-full overflow-x-auto">
+            <table className="w-full border-collapse text-left text-[0.85em]">
+              {headerCells && (
+                <thead>
+                  <tr>
+                    {headerCells.map((cell, cellIndex) => (
+                      <th key={cellIndex} scope="col" className="border border-current/20 px-2 py-1 font-semibold">
+                        {renderInlineMarkdown(cell)}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+              )}
+              <tbody>
+                {bodyRows.map((cells, rowIndex) => (
+                  <tr key={rowIndex}>
+                    {cells.map((cell, cellIndex) => (
+                      <td key={cellIndex} className="border border-current/20 px-2 py-1 align-top">
+                        {renderInlineMarkdown(cell)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+        continue;
+      }
+
+      renderedLines.push(
+        <div key={index} className="min-h-[1em]">
+          {renderInlineMarkdown(line)}
+        </div>
       );
-    });
+      index++;
+    }
+
+    return renderedLines;
   }, [pages, currentPage, wordsDb]);
 
   if (isPreparing) {
@@ -342,9 +462,9 @@ export function BookReaderScreen({ bookId, wordsDb, onUpdateWord, settings, onBa
         ref={pageContainerRef}
         onClick={handleCanvasClick}
         className="flex-1 min-h-0 p-6 overflow-hidden font-serif-reader cursor-pointer relative"
-        style={{ fontSize: `${fontSize}px` }}
+        style={{ ...readerBackgroundStyles, fontSize: `${fontSize}px` }}
       >
-        <div key={currentPage} ref={pageContentRef} className="reader-page-enter h-full overflow-hidden whitespace-pre-wrap leading-relaxed">
+        <div key={currentPage} ref={pageContentRef} className="reader-page-enter h-full overflow-hidden leading-relaxed">
           {renderedContent}
         </div>
       </div>

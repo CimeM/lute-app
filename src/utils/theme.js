@@ -1,5 +1,22 @@
 import { useState, useEffect } from 'react';
 
+export const READER_BACKGROUND_OPTIONS = [
+  { value: 'theme', label: 'Match app theme' },
+  { value: 'light', label: 'Light', backgroundColor: '#f8fafc' },
+  { value: 'sepia', label: 'Sepia', backgroundColor: '#fbf0d9' },
+  { value: 'dark', label: 'Dark', backgroundColor: '#09090b' },
+];
+
+export function getReaderBackgroundStyles(background, themeStyles) {
+  const option = READER_BACKGROUND_OPTIONS.find((entry) => entry.value === background);
+  if (!option || option.value === 'theme') return themeStyles.readerBackground;
+
+  return {
+    backgroundColor: option.backgroundColor,
+    color: background === 'dark' ? '#f4f4f5' : background === 'sepia' ? '#451a03' : '#0f172a',
+  };
+}
+
 export function useResolvedTheme(themeSetting) {
   const [systemIsDark, setSystemIsDark] = useState(
     window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -13,7 +30,7 @@ export function useResolvedTheme(themeSetting) {
     return () => mediaQuery.removeEventListener('change', handleChange);
   }, []);
 
-  if (themeSetting === 'system') {
+  if (themeSetting === 'system' || themeSetting === 'sepia') {
     return systemIsDark ? 'dark' : 'light';
   }
   return themeSetting || 'dark';
@@ -24,6 +41,7 @@ export function getThemeStyles(theme) {
     return {
       bodyBg: 'bg-slate-100 text-slate-900',
       appBg: 'bg-slate-200',
+      readerBackground: { backgroundColor: '#f8fafc', color: '#0f172a' },
       containerBg: 'bg-white border-slate-200',
       headerBg: 'bg-slate-50/90 border-slate-200 text-slate-800',
       navBg: 'bg-slate-50 border-slate-200',
@@ -40,29 +58,10 @@ export function getThemeStyles(theme) {
       statusBadge: 'bg-slate-200 text-slate-700 border-slate-300',
     };
   }
-  if (theme === 'sepia') {
-    return {
-      bodyBg: 'bg-amber-100 text-amber-950',
-      appBg: 'bg-amber-200/60',
-      containerBg: 'bg-[#fbf0d9] border-amber-200/80',
-      headerBg: 'bg-[#f4e4c1]/90 border-amber-200/80 text-amber-950',
-      navBg: 'bg-[#f4e4c1] border-amber-200/80',
-      navActive: 'text-amber-900 bg-amber-200/70',
-      navInactive: 'text-amber-800/60 hover:text-amber-950',
-      cardBg: 'bg-[#f4e4c1]/60 border-amber-200/80 text-amber-950',
-      cardHover: 'hover:border-amber-300',
-      textPrimary: 'text-amber-950',
-      textMuted: 'text-amber-800/70',
-      textSubtle: 'text-amber-800/50',
-      inputBg: 'bg-[#fbf0d9] border-amber-200 text-amber-950 focus:border-amber-600',
-      btnSecondary: 'bg-amber-200/50 hover:bg-amber-200 text-amber-950 border border-amber-200',
-      modalBg: 'bg-[#fbf0d9]/95 border-amber-200 text-amber-950',
-      statusBadge: 'bg-amber-200/60 text-amber-900 border-amber-300/60',
-    };
-  }
   return {
     bodyBg: 'bg-zinc-950 text-zinc-100',
     appBg: 'bg-zinc-950',
+    readerBackground: { backgroundColor: '#09090b', color: '#f4f4f5' },
     containerBg: 'bg-zinc-900 border-zinc-800',
     headerBg: 'bg-zinc-950/80 border-zinc-800 text-zinc-200',
     navBg: 'bg-zinc-950 border-zinc-800',

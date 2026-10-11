@@ -129,6 +129,7 @@ export async function chunkTextIntoPagesAsync(fullText, wordsPerPage = 100, onPr
   const pages = [];
   let currentChunk = [];
   let wordCounter = 0;
+  let reachedPageTarget = false;
   let tokenCount = 0;
   const tokens = /[\p{L}\p{M}\p{N}]+|[^\p{L}\p{M}\p{N}]+/gu;
   let match;
@@ -138,10 +139,14 @@ export async function chunkTextIntoPagesAsync(fullText, wordsPerPage = 100, onPr
     currentChunk.push(token);
     if (/[\p{L}\p{M}\p{N}]/u.test(token)) wordCounter++;
 
-    if (wordCounter >= wordsPerPage) {
+    if (wordCounter >= wordsPerPage) reachedPageTarget = true;
+    const atLineEnd = /[\r\n]/.test(token);
+    const fallbackBreak = wordCounter >= wordsPerPage * 2 && /\s/u.test(token);
+    if (reachedPageTarget && (atLineEnd || fallbackBreak)) {
       pages.push(currentChunk.join(""));
       currentChunk = [];
       wordCounter = 0;
+      reachedPageTarget = false;
     }
 
     tokenCount++;
@@ -162,5 +167,13 @@ export function splitTextPageInHalf(text) {
 
   const midpoint = Math.ceil(wordMatches.length / 2);
   const splitIndex = wordMatches[midpoint - 1].index + wordMatches[midpoint - 1][0].length;
-  return [text.slice(0, splitIndex), text.slice(splitIndex)];
+  const beforeLineEnd = text.lastIndexOf("\n", splitIndex - 1);
+  const afterLineEnd = text.indexOf("\n", splitIndex);
+  const lineBreak = beforeLineEnd < 0
+    ? afterLineEnd
+    : afterLineEnd < 0 || splitIndex - beforeLineEnd <= afterLineEnd - splitIndex
+      ? beforeLineEnd
+      : afterLineEnd;
+  const boundary = lineBreak >= 0 ? lineBreak + 1 : splitIndex;
+  return [text.slice(0, boundary), text.slice(boundary)];
 }

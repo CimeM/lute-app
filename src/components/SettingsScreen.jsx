@@ -1,14 +1,26 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BookOpen, Download, HelpCircle, Plus, Smartphone, Trash2, Upload, X } from "lucide-react";
 import packageInfo from "../../package.json";
 import { DEFAULT_BOOK_SOURCES } from "../utils/bookCatalog";
+import { READER_BACKGROUND_OPTIONS } from "../utils/theme";
 
-export function SettingsScreen({ settings, onSaveSettings, onNotify, onExport, onImport, deferredPrompt, isInstalledPwa, installInstructions, onClearPrompt }) {
+export function SettingsScreen({ settings, onSaveSettings, onNotify, onExport, onImport, deferredPrompt, isInstalledPwa, installInstructions, onClearPrompt, themeStyles }) {
   const [showHelp, setShowHelp] = useState(false);
   const [newSourceUrl, setNewSourceUrl] = useState('');
+  const [speechVoices, setSpeechVoices] = useState([]);
 
   const CURRENT_VERSION = `v${packageInfo.version}`;
   const bookSources = settings?.bookSources || DEFAULT_BOOK_SOURCES;
+
+  useEffect(() => {
+    const synth = window.speechSynthesis;
+    if (!synth) return undefined;
+
+    const updateVoices = () => setSpeechVoices(synth.getVoices());
+    updateVoices();
+    synth.addEventListener('voiceschanged', updateVoices);
+    return () => synth.removeEventListener('voiceschanged', updateVoices);
+  }, []);
 
   const saveBookSources = (updatedSources) => {
     onSaveSettings({ ...settings, bookSources: updatedSources });
@@ -48,11 +60,80 @@ export function SettingsScreen({ settings, onSaveSettings, onNotify, onExport, o
   };
 
   return (
-    <div className="max-w-md mx-auto p-4 space-y-6 text-zinc-900 dark:text-zinc-100">
+    <div className="h-full max-w-md mx-auto overflow-y-auto overscroll-contain p-4 space-y-6 text-zinc-900 dark:text-zinc-100">
       {/* Title */}
       <div className="border-b border-zinc-200 dark:border-zinc-800 pb-3">
         <h2 className="text-xl font-bold">Settings</h2>
       </div>
+
+      <section className="space-y-3 border-b border-zinc-200 pb-4 dark:border-zinc-800">
+        <label htmlFor="reader-theme" className="block text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+          App theme
+        </label>
+        <select
+          id="reader-theme"
+          value={['system', 'light', 'dark'].includes(settings?.readerTheme) ? settings.readerTheme : 'system'}
+          onChange={(event) => onSaveSettings({ ...settings, readerTheme: event.target.value })}
+          className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+        >
+          <option value="system">System</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
+
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Reader background</legend>
+          <div className="grid grid-cols-2 gap-2">
+            {READER_BACKGROUND_OPTIONS.map((option) => {
+              const selected = (settings?.readerBackground || 'theme') === option.value;
+              const preview = option.backgroundColor
+                ? { backgroundColor: option.backgroundColor }
+                : themeStyles.readerBackground;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => onSaveSettings({ ...settings, readerBackground: option.value })}
+                  aria-pressed={selected}
+                  className={`flex min-h-14 items-center gap-2 rounded-md border p-2 text-left text-xs transition ${selected ? 'border-amber-500 ring-1 ring-amber-500' : 'border-zinc-300 dark:border-zinc-700'}`}
+                >
+                  <span className="h-6 w-8 shrink-0 rounded-sm border border-black/15" style={preview} aria-hidden="true" />
+                  <span>{option.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </fieldset>
+
+        <div className="space-y-2">
+          <label htmlFor="speech-voice" className="block text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+            Pronunciation voice
+          </label>
+          <select
+            id="speech-voice"
+            value={settings?.speechVoiceURI || ''}
+            onChange={(event) => onSaveSettings({ ...settings, speechVoiceURI: event.target.value })}
+            className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+          >
+            <option value="">Automatic, based on book language</option>
+            {settings?.speechVoiceURI && !speechVoices.some((voice) => voice.voiceURI === settings.speechVoiceURI) && (
+              <option value={settings.speechVoiceURI}>Saved voice unavailable on this device</option>
+            )}
+            {[...speechVoices]
+              .sort((left, right) => left.lang.localeCompare(right.lang) || left.name.localeCompare(right.name))
+              .map((voice) => (
+                <option key={voice.voiceURI} value={voice.voiceURI}>
+                  {voice.name} ({voice.lang})
+                </option>
+              ))}
+          </select>
+          <p className="text-xs text-zinc-500">
+            {speechVoices.length
+              ? 'Voices are provided by this device. A language-matching voice is used for each book when available.'
+              : 'No system voices detected. The device default will be used; install speech voices in your device settings to choose one.'}
+          </p>
+        </div>
+      </section>
 
       <button
         type="button"

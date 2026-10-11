@@ -18,6 +18,14 @@ body,
   height: 100%;
 }
 
+html {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
 .bottom-nav {
   box-sizing: border-box;
   flex: 0 0 auto;
