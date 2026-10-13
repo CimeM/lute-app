@@ -48,7 +48,7 @@ The index contains a `version` and a `books` array. Each book has a stable catal
 
 ## Contributing
 
-Contributions are welcome. Before opening a pull request, test your changes locally and run `pnpm lint` and `pnpm build`. Keep each pull request focused on one feature or fix.
+Contributions are welcome. Install [prek](https://prek.j178.dev/) and run `prek install` to enable the lint hook on every commit. Before opening a pull request, test your changes locally and run `pnpm build`. Keep each pull request focused on one feature or fix.
 
 An AI review can help catch issues before submitting. For example, ask:
 
