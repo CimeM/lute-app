@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { BookOpen, Copy, ExternalLink, Settings, Smartphone, Store, X } from 'lucide-react';
+import { BookOpen, Settings, Smartphone, Store, X } from 'lucide-react';
 import { db, DEFAULT_GITHUB_REPO } from './db/LocalDB';
 import { useResolvedTheme, getThemeStyles } from './utils/theme';
 import { DEFAULT_BOOK_SOURCES, fetchBookCatalog, importCatalogBook } from './utils/bookCatalog';
 import { BookListScreen } from './components/BookListScreen';
 import { BookStoreScreen } from './components/BookStoreScreen';
 import { BookReaderScreen } from './components/BookReaderScreen';
+import { ExternalBrowserPrompt } from './components/ExternalBrowserPrompt';
 import { SettingsScreen } from './components/SettingsScreen';
 import { Notification } from './components/Notification';
 import { ReaderTutorial } from './components/ReaderTutorial';
@@ -24,6 +25,7 @@ const getInstallEnvironment = () => {
   const isIOS = /iPad|iPhone|iPod/i.test(userAgent)
     || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const isAndroid = /Android/i.test(userAgent);
+  const isInstagramBrowser = /Instagram/i.test(userAgent);
   const isEmbedded = window.self !== window.top
     || /FBAN|FBAV|Instagram|Twitter|TikTok|Snapchat|LinkedInApp|; wv\)/i.test(userAgent);
   const isStandalone = isRunningAsInstalledApp();
@@ -36,7 +38,7 @@ const getInstallEnvironment = () => {
   else if (/FxiOS|Firefox\//i.test(userAgent)) browser = 'Firefox';
   else if (/Safari\//i.test(userAgent)) browser = 'Safari';
 
-  return { browser, isEmbedded, isIOS, isAndroid, isStandalone };
+  return { browser, isEmbedded, isInstagramBrowser, isIOS, isAndroid, isStandalone };
 };
 
 const getInstallInstructions = ({ browser, isEmbedded, isIOS, isAndroid }) => {
@@ -401,48 +403,16 @@ export default function App() {
 
   if (shouldShowExternalBrowserPrompt) {
     return (
-      <div className={`min-h-screen w-full flex items-center justify-center px-4 py-8 ${themeStyles.bodyBg}`}>
-        <div className={`w-full max-w-md rounded-2xl border p-5 shadow-xl backdrop-blur-sm ${themeStyles.modalBg}`}>
-          <div className="mb-4 flex items-center gap-3">
-            <img src="/icons/icon-192.png" alt="" className="h-10 w-10 rounded-lg object-cover" />
-            <div>
-              <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-zinc-500">Lute app</p>
-              <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">Open in {browserName}</h1>
-            </div>
-          </div>
-
-          <p className="mb-5 text-sm leading-relaxed text-zinc-600 dark:text-zinc-300">
-            This app&apos;s built-in browser can interrupt reading. Open the page in a regular browser to keep going.
-          </p>
-
-          <div className="space-y-3">
-            <a
-              href={openInBrowserHref}
-              target={installEnvironment.isAndroid ? undefined : '_blank'}
-              rel="noreferrer"
-              className="flex w-full items-center justify-center gap-2 rounded-lg bg-zinc-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
-            >
-              <ExternalLink className="h-4 w-4" aria-hidden="true" />
-              Try opening in {browserName}
-            </a>
-
-            <button
-              type="button"
-              onClick={copyPageLink}
-              className={`flex w-full items-center justify-center gap-2 rounded-lg border px-4 py-3 text-sm font-semibold transition ${themeStyles.navInactive}`}
-            >
-              <Copy className="h-4 w-4" aria-hidden="true" />
-              {linkCopied ? 'Link copied' : 'Copy page link'}
-            </button>
-          </div>
-
-          <p className="mt-4 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
-            {installEnvironment.isIOS
-              ? 'If it stays here, tap the menu or share button and choose “Open in Safari”.'
-              : 'If it stays here, tap the menu and choose “Open in browser” or copy the link into your browser.'}
-          </p>
-        </div>
-      </div>
+      <ExternalBrowserPrompt
+        isInstagramBrowser={installEnvironment.isInstagramBrowser}
+        isIOS={installEnvironment.isIOS}
+        isAndroid={installEnvironment.isAndroid}
+        browserName={browserName}
+        openInBrowserHref={openInBrowserHref}
+        onCopyLink={copyPageLink}
+        linkCopied={linkCopied}
+        themeStyles={themeStyles}
+      />
     );
   }
 
