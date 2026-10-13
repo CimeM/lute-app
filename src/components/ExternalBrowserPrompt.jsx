@@ -1,4 +1,4 @@
-import { BookOpen, Copy, ExternalLink, GraduationCap, Headphones, Languages, Library, TrendingUp } from 'lucide-react';
+import { BookOpen, Copy, ExternalLink, GraduationCap, Headphones, Languages, Library, Plane, TrendingUp } from 'lucide-react';
 
 const FEATURES = [
   {
@@ -31,6 +31,11 @@ const FEATURES = [
     title: 'See your progress',
     description: 'Track the words you are learning in every book.',
   },
+  {
+    icon: Plane,
+    title: 'Get a head start before you land',
+    description: 'Make airport waiting time count with a few pages and new words in the language you are learning.',
+  },
 ];
 
 export function ExternalBrowserPrompt({
@@ -50,10 +55,10 @@ export function ExternalBrowserPrompt({
           <section className="mx-auto flex max-w-2xl flex-col items-center py-8 text-center sm:py-14">
             <img src="/icons/icon-192.png" alt="Lute" className="mb-5 h-16 w-16 rounded-2xl object-cover shadow-sm" />
             <h1 className="max-w-xl text-3xl font-bold leading-tight text-zinc-900 dark:text-zinc-100 sm:text-4xl">
-              Start learning a language by reading.
+              Your next language, one good read away.
             </h1>
             <p className="mt-4 max-w-lg text-base leading-relaxed text-zinc-600 dark:text-zinc-300">
-              Immerse yourself in books, with stories for every step from A1 to C1.
+              Build confidence with stories at your level and useful new words, whether you are learning for fun or getting ready to travel.
             </p>
             <div className="mt-7 flex w-full max-w-sm flex-col gap-3">
               <a
@@ -138,7 +143,7 @@ export function ExternalBrowserPrompt({
 
         <p className="mt-4 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
           {isIOS
-            ? 'If it stays here, tap the menu or share button and choose “Open in Safari”.'
+            ? 'If it stays here, tap the three dots in the top-right corner and choose “Open in Safari”.'
             : 'If it stays here, tap the menu and choose “Open in browser” or copy the link into your browser.'}
         </p>
       </div>
