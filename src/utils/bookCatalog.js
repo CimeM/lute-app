@@ -19,7 +19,7 @@ export async function fetchBookCatalog(source) {
       if (!['http:', 'https:'].includes(sourceUrl.protocol)) {
         throw new Error('Catalog URLs must use HTTP or HTTPS.');
       }
-      const response = await fetch(source.url);
+      const response = await fetch(source.url, { cache: 'no-cache' });
       if (!response.ok) throw new Error(`Catalog request failed: ${response.status}`);
       catalog = await response.json();
     }

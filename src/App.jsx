@@ -154,6 +154,10 @@ export default function App() {
   useEffect(() => {
     document.documentElement.classList.toggle('dark', effectiveTheme === 'dark');
     document.body.className = `h-dvh overflow-hidden flex flex-col transition-colors duration-200 ${themeStyles.bodyBg}`;
+    document.querySelector('meta[name="theme-color"]')?.setAttribute(
+      'content',
+      effectiveTheme === 'dark' ? '#09090b' : '#e2e8f0',
+    );
   }, [effectiveTheme, themeStyles.bodyBg]);
 
   useEffect(() => {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight, Play, X } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Pause, Play, X } from 'lucide-react';
 import { marked } from 'marked';
 import { db } from '../db/LocalDB';
 import { chunkTextIntoPagesAsync, splitTextPageInHalf } from '../utils/epubParser';
@@ -44,14 +44,19 @@ export function BookReaderScreen({ bookId, wordsDb, onUpdateWord, settings, onBa
   const [translationError, setTranslationError] = useState('');
   const [popupPosition, setPopupPosition] = useState('bottom');
   const [fontSize, setFontSize] = useState(18);
+  const [speechStatus, setSpeechStatus] = useState('idle');
   const readerBackgroundStyles = getReaderBackgroundStyles(settings?.readerBackground || 'theme', themeStyles);
   const pageContainerRef = useRef(null);
   const pageContentRef = useRef(null);
+  const speechUtteranceRef = useRef(null);
   const canSpeakWords = typeof window !== 'undefined'
     && typeof window.speechSynthesis?.speak === 'function'
     && typeof window.SpeechSynthesisUtterance === 'function';
 
-  useEffect(() => () => window.speechSynthesis?.cancel(), []);
+  useEffect(() => () => {
+    speechUtteranceRef.current = null;
+    window.speechSynthesis?.cancel();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -221,6 +226,17 @@ export function BookReaderScreen({ bookId, wordsDb, onUpdateWord, settings, onBa
     }
 
     if (!canSpeakWords || !selectedWord?.text) return;
+    if (speechStatus === 'speaking') {
+      window.speechSynthesis.pause();
+      setSpeechStatus('paused');
+      return;
+    }
+    if (speechStatus === 'paused') {
+      window.speechSynthesis.resume();
+      setSpeechStatus('speaking');
+      return;
+    }
+
     const utterance = new window.SpeechSynthesisUtterance(selectedWord.text);
     const voices = window.speechSynthesis.getVoices();
     const language = book?.language?.toLowerCase().replace('_', '-');
@@ -238,11 +254,22 @@ export function BookReaderScreen({ bookId, wordsDb, onUpdateWord, settings, onBa
       utterance.lang = book.language;
     }
     window.speechSynthesis.cancel();
+    speechUtteranceRef.current = utterance;
+    const finishSpeech = () => {
+      if (speechUtteranceRef.current !== utterance) return;
+      speechUtteranceRef.current = null;
+      setSpeechStatus('idle');
+    };
+    utterance.onend = finishSpeech;
+    utterance.onerror = finishSpeech;
+    setSpeechStatus('speaking');
     window.speechSynthesis.speak(utterance);
   };
 
   const closeWordSheet = () => {
+    speechUtteranceRef.current = null;
     window.speechSynthesis?.cancel();
+    setSpeechStatus('idle');
     setSelectedWord(null);
   };
 
@@ -483,8 +510,8 @@ export function BookReaderScreen({ bookId, wordsDb, onUpdateWord, settings, onBa
           <div className="flex items-center justify-between mb-2">
             <span className="font-bold text-lg capitalize">{selectedWord.text}</span>
             <div className="flex items-center gap-1">
-              <button type="button" onClick={playSelectedWord} disabled={!canSpeakWords} aria-label={`Play pronunciation of ${selectedWord.text}`} title={canSpeakWords ? 'Play pronunciation' : 'Speech synthesis is unavailable in this browser'} className="rounded p-1 text-zinc-400 transition hover:bg-zinc-800/20 hover:text-zinc-900 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:text-zinc-100">
-                <Play className="w-4 h-4" />
+              <button type="button" onClick={playSelectedWord} disabled={!canSpeakWords} aria-label={speechStatus === 'speaking' ? `Pause pronunciation of ${selectedWord.text}` : `Play pronunciation of ${selectedWord.text}`} title={canSpeakWords ? (speechStatus === 'speaking' ? 'Pause pronunciation' : 'Play pronunciation') : 'Speech synthesis is unavailable in this browser'} className="rounded p-1 text-zinc-400 transition hover:bg-zinc-800/20 hover:text-zinc-900 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:text-zinc-100">
+                {speechStatus === 'speaking' ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
               </button>
               <button type="button" onClick={closeWordSheet} aria-label="Close word details" title="Close" className="rounded p-1 text-zinc-400 transition hover:bg-zinc-800/20 hover:text-zinc-900 active:scale-95 dark:hover:text-zinc-100">
                 <X className="w-4 h-4" />
