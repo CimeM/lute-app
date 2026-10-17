@@ -5,6 +5,20 @@ export const DEFAULT_BOOK_SOURCES = [
   { id: 'built-in', name: 'Built-in books', url: 'builtin', enabled: true },
 ];
 
+export function getCatalogBookCoverUrl(source, book) {
+  if (!book.coverUrl) return '/images/default-book-cover.svg';
+
+  try {
+    const catalogUrl = source.url === 'builtin'
+      ? new URL('/books/index.json', window.location.origin)
+      : new URL(source.url);
+    const coverUrl = new URL(book.coverUrl, catalogUrl);
+    return ['http:', 'https:'].includes(coverUrl.protocol) ? coverUrl.href : '/images/default-book-cover.svg';
+  } catch {
+    return '/images/default-book-cover.svg';
+  }
+}
+
 const bundledBookAssets = import.meta.glob('/books/*.md', {
   eager: true,
   query: '?url',
@@ -59,6 +73,7 @@ export async function importCatalogBook(source, book) {
       author: book.author || '',
       description: book.description || '',
       language: book.language || '',
+      coverUrl: getCatalogBookCoverUrl(source, book),
       content,
       currentPage: 0,
       hasBeenOpened: false,

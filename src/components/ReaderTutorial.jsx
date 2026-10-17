@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { BookOpen, ChevronRight, GraduationCap, Play, Settings, Store, Trophy, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { BookOpen, ChevronRight, GraduationCap, Pause, Play, Settings, Store, Trophy, X } from 'lucide-react';
 
 const LEVELS = [1, 2, 3, 4, 99];
 const PROGRESS_LEVELS = [
@@ -38,7 +38,9 @@ export function ReaderTutorial({ onClose, themeStyles }) {
   const [step, setStep] = useState('word');
   const [selectedLevel, setSelectedLevel] = useState(null);
   const [hasPlayedSample, setHasPlayedSample] = useState(false);
+  const [sampleSpeechStatus, setSampleSpeechStatus] = useState('idle');
   const [isStoreTabSelected, setIsStoreTabSelected] = useState(false);
+  const sampleUtteranceRef = useRef(null);
 
   useEffect(() => {
     const handleKeyDown = (event) => {
@@ -48,16 +50,44 @@ export function ReaderTutorial({ onClose, themeStyles }) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
+  useEffect(() => () => {
+    sampleUtteranceRef.current = null;
+    window.speechSynthesis?.cancel();
+  }, []);
+
   const copy = STEP_COPY[step];
   const playSampleWord = () => {
-    if (typeof window.speechSynthesis?.speak === 'function'
-      && typeof window.SpeechSynthesisUtterance === 'function') {
-      const utterance = new window.SpeechSynthesisUtterance('casa');
-      utterance.lang = 'it-IT';
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(utterance);
+    if (typeof window.speechSynthesis?.speak !== 'function'
+      || typeof window.SpeechSynthesisUtterance !== 'function') {
+      setHasPlayedSample(true);
+      return;
     }
+
+    if (sampleSpeechStatus === 'speaking') {
+      window.speechSynthesis.pause();
+      setSampleSpeechStatus('paused');
+      return;
+    }
+    if (sampleSpeechStatus === 'paused') {
+      window.speechSynthesis.resume();
+      setSampleSpeechStatus('speaking');
+      return;
+    }
+
+    const utterance = new window.SpeechSynthesisUtterance('casa');
+    utterance.lang = 'it-IT';
+    window.speechSynthesis.cancel();
+    sampleUtteranceRef.current = utterance;
+    const finishSpeech = () => {
+      if (sampleUtteranceRef.current !== utterance) return;
+      sampleUtteranceRef.current = null;
+      setSampleSpeechStatus('idle');
+    };
+    utterance.onend = finishSpeech;
+    utterance.onerror = finishSpeech;
+    setSampleSpeechStatus('speaking');
     setHasPlayedSample(true);
+    window.speechSynthesis.speak(utterance);
   };
 
   return (
@@ -204,10 +234,12 @@ export function ReaderTutorial({ onClose, themeStyles }) {
                     <button
                       type="button"
                       onClick={playSampleWord}
-                      aria-label="Play pronunciation of casa"
+                      aria-label={sampleSpeechStatus === 'speaking' ? 'Pause pronunciation of casa' : 'Play pronunciation of casa'}
                       className={`relative rounded p-1.5 text-zinc-600 transition hover:bg-zinc-800/10 dark:text-zinc-300 dark:hover:bg-zinc-100/10 ${step === 'play' && !hasPlayedSample ? 'reader-tutorial-target' : ''}`}
                     >
-                      <Play className="h-4 w-4" aria-hidden="true" />
+                      {sampleSpeechStatus === 'speaking'
+                        ? <Pause className="h-4 w-4" aria-hidden="true" />
+                        : <Play className="h-4 w-4" aria-hidden="true" />}
                     </button>
                   )}
                 </div>

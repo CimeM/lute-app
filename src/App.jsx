@@ -446,6 +446,10 @@ export default function App() {
             themeStyles={themeStyles}
             onNotify={notify}
             onBookAdded={handleStoreBookAdded}
+            onSaveSettings={async (updated) => {
+              setSettings(updated);
+              await db.saveSettings(updated);
+            }}
           />
         )}
         
