@@ -1,16 +1,26 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Check, Copy, Download, ExternalLink, Folder, Search } from 'lucide-react';
+import { Check, Copy, Download, ExternalLink, Folder, Search, X } from 'lucide-react';
 import { db } from '../db/LocalDB';
-import { fetchBookCatalog, importCatalogBook } from '../utils/bookCatalog';
+import { fetchBookCatalog, getCatalogBookCoverUrl, importCatalogBook } from '../utils/bookCatalog';
 
-export function BookStoreScreen({ settings, themeStyles, onNotify, onBookAdded }) {
+export function BookStoreScreen({ settings, themeStyles, onNotify, onBookAdded, onSaveSettings }) {
   const [catalogs, setCatalogs] = useState([]);
   const [libraryBooks, setLibraryBooks] = useState([]);
   const [search, setSearch] = useState('');
-  const [language, setLanguage] = useState('all');
+  const [language, setLanguage] = useState(settings.storeLanguage || 'all');
   const [loading, setLoading] = useState(true);
   const [busyBook, setBusyBook] = useState(null);
   const [copiedBook, setCopiedBook] = useState(null);
+  const [selectedBook, setSelectedBook] = useState(null);
+
+  useEffect(() => {
+    if (!selectedBook) return undefined;
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setSelectedBook(null);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedBook]);
 
   useEffect(() => {
     let cancelled = false;
@@ -88,7 +98,7 @@ export function BookStoreScreen({ settings, themeStyles, onNotify, onBookAdded }
         <p className={`text-xs ${themeStyles.textMuted}`}>Browse books from your selected sources.</p>
       </header>
 
-      <div className="mb-4 grid grid-cols-[minmax(0,1fr)_7rem] gap-2">
+      <div className="mb-4 grid grid-cols-[minmax(0,1fr)_8rem] items-end gap-2">
         <label className={`flex items-center gap-2 rounded-md border px-3 ${themeStyles.inputBg}`}>
           <Search className="h-4 w-4 shrink-0 opacity-60" />
           <input
@@ -100,15 +110,21 @@ export function BookStoreScreen({ settings, themeStyles, onNotify, onBookAdded }
             className="min-w-0 flex-1 bg-transparent py-2 text-sm outline-none"
           />
         </label>
-        <select
-          value={language}
-          onChange={(event) => setLanguage(event.target.value)}
-          aria-label="Filter by language"
-          className={`min-w-0 w-full rounded-md border px-1.5 text-xs ${themeStyles.inputBg}`}
-        >
-          <option value="all">All languages</option>
-          {languages.map((code) => <option key={code} value={code}>{code.toUpperCase()}</option>)}
-        </select>
+        <label className={`flex min-w-0 flex-col gap-1 text-[11px] ${themeStyles.textMuted}`}>
+          Material language
+          <select
+            value={language}
+            onChange={(event) => {
+              const storeLanguage = event.target.value;
+              setLanguage(storeLanguage);
+              onSaveSettings({ ...settings, storeLanguage });
+            }}
+            className={`min-w-0 w-full rounded-md border px-1.5 py-2 text-xs ${themeStyles.inputBg}`}
+          >
+            <option value="all">All languages</option>
+            {languages.map((code) => <option key={code} value={code}>{code.toUpperCase()}</option>)}
+          </select>
+        </label>
       </div>
 
       {catalogs.some((catalog) => catalog.error) && (
@@ -144,55 +160,75 @@ export function BookStoreScreen({ settings, themeStyles, onNotify, onBookAdded }
                     {sourceHasBooks ? 'No books match your search.' : 'No books in this source.'}
                   </p>
                 ) : (
-                  <div className="mt-2 grid grid-cols-1 gap-2.5">
+                  <div className="mt-2 grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-3">
                     {sourceBooks.map((book) => {
                       const key = `${book.source.url}:${book.id}`;
                       const added = isInLibrary(book);
                       return (
                         <article key={key} className={`rounded-md border p-3 ${themeStyles.cardBg}`}>
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <h3 className={`text-sm font-semibold ${themeStyles.textPrimary}`}>{book.title}</h3>
-                              <p className={`mt-1 text-xs ${themeStyles.textMuted}`}>
-                                {book.author || 'Unknown author'}{book.language ? ` · ${book.language.toUpperCase()}` : ''}
-                              </p>
+                          <div className="flex items-start gap-3">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedBook(book)}
+                              aria-label={`View details for ${book.title}`}
+                              className="shrink-0 rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-500"
+                            >
+                              <img
+                                src={getCatalogBookCoverUrl(book.source, book)}
+                                alt={`Cover of ${book.title}`}
+                                onError={(event) => { event.currentTarget.src = '/images/default-book-cover.svg'; }}
+                                className="h-[5.5rem] w-16 rounded-md border border-black/10 object-cover shadow-sm"
+                              />
+                            </button>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0 flex-1">
+                                  <h3 className={`break-words text-sm font-semibold ${themeStyles.textPrimary}`}>
+                                    <button type="button" onClick={() => setSelectedBook(book)} className="text-left hover:text-amber-500">
+                                      {book.title}
+                                    </button>
+                                  </h3>
+                                  <p className={`mt-1 text-xs ${themeStyles.textMuted}`}>
+                                    {book.author || 'Unknown author'}{book.language ? ` · ${book.language.toUpperCase()}` : ''}
+                                  </p>
+                                </div>
+                                {book.file && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCopyLink(book)}
+                                    aria-label={`Copy add link for ${book.title}`}
+                                    title="Copy automatic add link"
+                                    className={`shrink-0 rounded p-1.5 ${themeStyles.textMuted} hover:text-amber-500`}
+                                  >
+                                    {copiedBook === key ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                                  </button>
+                                )}
+                              </div>
+                              <div className="mt-3 flex flex-wrap items-center gap-2">
+                                {book.file && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAddBook(book)}
+                                    disabled={added || busyBook === key}
+                                    className="inline-flex items-center gap-1.5 rounded-md bg-amber-500 px-3 py-1.5 text-xs font-semibold text-zinc-950 transition hover:bg-amber-400 disabled:cursor-default disabled:opacity-60"
+                                  >
+                                    {added ? <Check className="h-3.5 w-3.5" /> : <Download className="h-3.5 w-3.5" />}
+                                    {added ? 'In Library' : busyBook === key ? 'Adding...' : book.purchaseUrl ? 'Download preview' : 'Add to Library'}
+                                  </button>
+                                )}
+                                {book.purchaseUrl && (
+                                  <a
+                                    href={book.purchaseUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium ${themeStyles.btnSecondary}`}
+                                  >
+                                    {book.file ? 'Purchase' : 'View / purchase'}
+                                    <ExternalLink className="h-3.5 w-3.5" />
+                                  </a>
+                                )}
+                              </div>
                             </div>
-                            {book.file && (
-                              <button
-                                type="button"
-                                onClick={() => handleCopyLink(book)}
-                                aria-label={`Copy add link for ${book.title}`}
-                                title="Copy automatic add link"
-                                className={`shrink-0 rounded p-1.5 ${themeStyles.textMuted} hover:text-amber-500`}
-                              >
-                                {copiedBook === key ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                              </button>
-                            )}
-                          </div>
-                          {book.description && <p className={`mt-2 text-sm ${themeStyles.textMuted}`}>{book.description}</p>}
-                          <div className="mt-3 flex flex-wrap items-center gap-2">
-                            {book.file && (
-                              <button
-                                type="button"
-                                onClick={() => handleAddBook(book)}
-                                disabled={added || busyBook === key}
-                                className="inline-flex items-center gap-1.5 rounded-md bg-amber-500 px-3 py-1.5 text-xs font-semibold text-zinc-950 transition hover:bg-amber-400 disabled:cursor-default disabled:opacity-60"
-                              >
-                                {added ? <Check className="h-3.5 w-3.5" /> : <Download className="h-3.5 w-3.5" />}
-                                {added ? 'In Library' : busyBook === key ? 'Adding...' : book.purchaseUrl ? 'Download preview' : 'Add to Library'}
-                              </button>
-                            )}
-                            {book.purchaseUrl && (
-                              <a
-                                href={book.purchaseUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium ${themeStyles.btnSecondary}`}
-                              >
-                                {book.file ? 'Purchase' : 'View / purchase'}
-                                <ExternalLink className="h-3.5 w-3.5" />
-                              </a>
-                            )}
                           </div>
                         </article>
                       );
@@ -202,6 +238,97 @@ export function BookStoreScreen({ settings, themeStyles, onNotify, onBookAdded }
               </details>
             );
           })}
+        </div>
+      )}
+
+      {selectedBook && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-3 sm:items-center"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setSelectedBook(null);
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="book-details-title"
+            className={`max-h-[90dvh] w-full max-w-2xl overflow-y-auto rounded-lg border p-4 shadow-xl sm:p-6 ${themeStyles.cardBg} ${themeStyles.textPrimary}`}
+          >
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h2 id="book-details-title" className="text-lg font-semibold">{selectedBook.title}</h2>
+                <p className={`mt-1 text-sm ${themeStyles.textMuted}`}>
+                  {selectedBook.author || 'Unknown author'}{selectedBook.language ? ` · ${selectedBook.language.toUpperCase()}` : ''}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedBook(null)}
+                aria-label="Close book details"
+                className={`shrink-0 rounded p-1.5 ${themeStyles.textMuted} hover:bg-black/5 hover:text-amber-500 dark:hover:bg-white/10`}
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-[8rem_minmax(0,1fr)]">
+              <img
+                src={getCatalogBookCoverUrl(selectedBook.source, selectedBook)}
+                alt={`Cover of ${selectedBook.title}`}
+                onError={(event) => { event.currentTarget.src = '/images/default-book-cover.svg'; }}
+                className="h-44 w-32 rounded-md border border-black/10 object-cover shadow-sm"
+              />
+              <div className="min-w-0 space-y-4">
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                  <div>
+                    <dt className={`font-semibold ${themeStyles.textMuted}`}>Language</dt>
+                    <dd>{selectedBook.language?.toUpperCase() || 'Not specified'}</dd>
+                  </div>
+                  <div>
+                    <dt className={`font-semibold ${themeStyles.textMuted}`}>Source</dt>
+                    <dd>{selectedBook.source.name}</dd>
+                  </div>
+                  {selectedBook.tags?.length > 0 && (
+                    <div className="col-span-2">
+                      <dt className={`font-semibold ${themeStyles.textMuted}`}>Topics</dt>
+                      <dd>{selectedBook.tags.join(', ')}</dd>
+                    </div>
+                  )}
+                </dl>
+                <div>
+                  <h3 className="mb-1 text-sm font-semibold">About this book</h3>
+                  <p className={`whitespace-pre-line text-sm leading-relaxed ${themeStyles.textMuted}`}>
+                    {selectedBook.description || 'No description is available for this book.'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-zinc-200 pt-4 dark:border-zinc-700">
+              {selectedBook.file && (
+                <button
+                  type="button"
+                  onClick={() => handleAddBook(selectedBook)}
+                  disabled={isInLibrary(selectedBook) || busyBook === `${selectedBook.source.url}:${selectedBook.id}`}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-zinc-950 transition hover:bg-amber-400 disabled:cursor-default disabled:opacity-60"
+                >
+                  {isInLibrary(selectedBook) ? <Check className="h-3.5 w-3.5" /> : <Download className="h-3.5 w-3.5" />}
+                  {isInLibrary(selectedBook) ? 'In Library' : busyBook === `${selectedBook.source.url}:${selectedBook.id}` ? 'Adding...' : selectedBook.purchaseUrl ? 'Download preview' : 'Add to Library'}
+                </button>
+              )}
+              {selectedBook.purchaseUrl && (
+                <a
+                  href={selectedBook.purchaseUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-2 text-xs font-medium ${themeStyles.btnSecondary}`}
+                >
+                  {selectedBook.file ? 'Purchase' : 'View / purchase'}
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              )}
+            </div>
+          </section>
         </div>
       )}
     </div>

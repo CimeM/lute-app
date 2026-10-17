@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 480" role="img" aria-label="Default book cover">
+  <rect width="320" height="480" fill="#3d5755"/>
+  <rect x="18" y="18" width="284" height="444" rx="8" fill="none" stroke="#dce8e4" stroke-opacity=".28" stroke-width="2"/>
+  <path d="M44 20v440" stroke="#dce8e4" stroke-opacity=".14" stroke-width="2"/>
+</svg>
