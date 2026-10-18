@@ -153,6 +153,7 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', effectiveTheme === 'dark');
+    document.documentElement.style.colorScheme = effectiveTheme;
     document.body.className = `h-dvh overflow-hidden flex flex-col transition-colors duration-200 ${themeStyles.bodyBg}`;
     document.querySelector('meta[name="theme-color"]')?.setAttribute(
       'content',
