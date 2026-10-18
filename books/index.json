@@ -7,8 +7,7 @@
       "author": "Lute Reader",
       "description": "A short story about a little dragon, written in German.",
       "language": "de",
-      "file": "🇩🇪_das_abenteuer_des_kleinen_drachen.md",
-      "coverUrl": "/images/default-book-cover.svg",
+      "file": "little_dragon/🇩🇪_das_abenteuer_des_kleinen_drachen.md",
       "addToLibrary": false
     },
     {
@@ -17,7 +16,7 @@
       "author": "Lute Reader",
       "description": "A short story about a little dragon, written in Spanish.",
       "language": "es",
-      "file": "🇪🇸_la_aventura_del_peque_o_drag_n.md",
+      "file": "little_dragon/🇪🇸_la_aventura_del_peque_o_drag_n.md",
       "addToLibrary": false
     },
     {
@@ -26,7 +25,7 @@
       "author": "Lute Reader",
       "description": "A short story about a little dragon, written in French.",
       "language": "fr",
-      "file": "🇫🇷_l_aventure_du_petit_dragon.md",
+      "file": "little_dragon/🇫🇷_l_aventure_du_petit_dragon.md",
       "addToLibrary": false
     },
     {
@@ -35,7 +34,7 @@
       "author": "Lute Reader",
       "description": "A short story about a little dragon, written in Croatian.",
       "language": "hr",
-      "file": "🇭🇷_pustolovina_malog_zmaja.md",
+      "file": "little_dragon/🇭🇷_pustolovina_malog_zmaja.md",
       "addToLibrary": false
     },
     {
@@ -44,7 +43,7 @@
       "author": "Lute Reader",
       "description": "A short story about a little dragon, written in Italian.",
       "language": "it",
-      "file": "🇮🇹_l_avventura_del_piccolo_drago.md",
+      "file": "little_dragon/🇮🇹_l_avventura_del_piccolo_drago.md",
       "addToLibrary": false
     },
     {
@@ -53,7 +52,7 @@
       "author": "Lute Reader",
       "description": "A short story about a little dragon, written in Dutch.",
       "language": "nl",
-      "file": "🇳🇱_het_avontuur_van_de_kleine_draak.md",
+      "file": "little_dragon/🇳🇱_het_avontuur_van_de_kleine_draak.md",
       "addToLibrary": false
     },
     {
@@ -62,7 +61,7 @@
       "author": "Lute Reader",
       "description": "A short story about a little dragon, written in Serbian.",
       "language": "sr",
-      "file": "🇷🇸_avantura_malog_zmaja.md",
+      "file": "little_dragon/🇷🇸_avantura_malog_zmaja.md",
       "addToLibrary": false
     },
     {
@@ -71,7 +70,7 @@
       "author": "Lute Reader",
       "description": "A short story about a little dragon, written in Russian.",
       "language": "ru",
-      "file": "🇷🇺_code_artifact.md",
+      "file": "little_dragon/🇷🇺_code_artifact.md",
       "addToLibrary": false
     },
     {
@@ -80,7 +79,7 @@
       "author": "Lute Reader",
       "description": "A short story about a little dragon, written in Slovenian.",
       "language": "sl",
-      "file": "🇸🇮_dogodiv_ina_malega_zmaja.md",
+      "file": "little_dragon/🇸🇮_dogodiv_ina_malega_zmaja.md",
       "addToLibrary": false
     },
     {
@@ -89,7 +88,7 @@
       "author": "Lute Reader",
       "description": "A short story about a little dragon, written in Slovak.",
       "language": "sk",
-      "file": "🇸🇰_dobrodru_stvo_mal_ho_draka.md",
+      "file": "little_dragon/🇸🇰_dobrodru_stvo_mal_ho_draka.md",
       "addToLibrary": false
     }
   ]
