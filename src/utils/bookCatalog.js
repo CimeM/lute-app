@@ -19,7 +19,7 @@ export function getCatalogBookCoverUrl(source, book) {
   }
 }
 
-const bundledBookAssets = import.meta.glob('/books/*.md', {
+const bundledBookAssets = import.meta.glob('/books/**/*.md', {
   eager: true,
   query: '?url',
   import: 'default',
