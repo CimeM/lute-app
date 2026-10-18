@@ -165,7 +165,7 @@ export function BookStoreScreen({ settings, themeStyles, onNotify, onBookAdded, 
                       const key = `${book.source.url}:${book.id}`;
                       const added = isInLibrary(book);
                       return (
-                        <article key={key} className={`rounded-md border p-3 ${themeStyles.cardBg}`}>
+                        <article key={key} className={`rounded-md border p-3 shadow-md transition-shadow hover:shadow-lg ${themeStyles.cardBg}`}>
                           <div className="flex items-start gap-3">
                             <button
                               type="button"

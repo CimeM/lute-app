@@ -48,15 +48,42 @@ export function BookReaderScreen({ bookId, wordsDb, onUpdateWord, settings, onBa
   const readerBackgroundStyles = getReaderBackgroundStyles(settings?.readerBackground || 'theme', themeStyles);
   const pageContainerRef = useRef(null);
   const pageContentRef = useRef(null);
+  const titleViewportRef = useRef(null);
+  const titleTrackRef = useRef(null);
+  const titleTextRef = useRef(null);
   const speechUtteranceRef = useRef(null);
   const canSpeakWords = typeof window !== 'undefined'
     && typeof window.speechSynthesis?.speak === 'function'
     && typeof window.SpeechSynthesisUtterance === 'function';
-
   useEffect(() => () => {
     speechUtteranceRef.current = null;
     window.speechSynthesis?.cancel();
   }, []);
+
+  useEffect(() => {
+    const viewport = titleViewportRef.current;
+    const track = titleTrackRef.current;
+    const title = titleTextRef.current;
+    if (!viewport || !track || !title) return undefined;
+    const updateOverflow = () => {
+      track.classList.toggle('is-overflowing', title.scrollWidth > viewport.clientWidth - 24);
+    };
+    updateOverflow();
+
+    if (typeof ResizeObserver === 'undefined') {
+      const frameId = window.requestAnimationFrame(updateOverflow);
+      window.addEventListener('resize', updateOverflow);
+      return () => {
+        window.cancelAnimationFrame(frameId);
+        window.removeEventListener('resize', updateOverflow);
+      };
+    }
+
+    const observer = new ResizeObserver(updateOverflow);
+    observer.observe(viewport);
+    observer.observe(title);
+    return () => observer.disconnect();
+  }, [book?.title]);
 
   useEffect(() => {
     let cancelled = false;
@@ -335,9 +362,23 @@ export function BookReaderScreen({ bookId, wordsDb, onUpdateWord, settings, onBa
       });
     };
     const renderInlineTokens = (tokens) => tokens.map((token, index) => {
+      if (token.type === 'list') {
+        const List = token.ordered ? 'ol' : 'ul';
+        const listStyle = token.ordered ? 'list-decimal' : 'list-disc';
+        return (
+          <List key={index} start={token.ordered ? Number(token.start) || 1 : undefined} className={`my-1 pl-6 ${listStyle}`}>
+            {token.items.map((item, itemIndex) => (
+              <li key={itemIndex}>{renderInlineTokens(item.tokens || [])}</li>
+            ))}
+          </List>
+        );
+      }
       if (token.type === 'strong' || token.type === 'em') {
         const Tag = token.type === 'strong' ? 'strong' : 'em';
         return <Tag key={index}>{renderInlineTokens(token.tokens || [])}</Tag>;
+      }
+      if (token.type === 'text' && token.tokens) {
+        return <React.Fragment key={index}>{renderInlineTokens(token.tokens)}</React.Fragment>;
       }
       return <React.Fragment key={index}>{renderWords(token.text ?? token.raw ?? '')}</React.Fragment>;
     });
@@ -439,8 +480,13 @@ export function BookReaderScreen({ bookId, wordsDb, onUpdateWord, settings, onBa
           <ArrowLeft className="w-5 h-5" />
         </button>
 
-        <div className="min-w-0 flex-1 truncate text-center text-xs font-medium">
-          {book.title}
+        <div ref={titleViewportRef} className="min-w-0 flex-1 overflow-hidden text-center text-xs font-medium" title={book.title}>
+          <div ref={titleTrackRef} className="reader-title-track">
+            <span ref={titleTextRef} className="reader-title-text">
+              {book.title}
+            </span>
+            <span aria-hidden="true" className="reader-title-copy">{book.title}</span>
+          </div>
         </div>
 
         <div className="flex shrink-0 items-center gap-0.5">
@@ -502,6 +548,10 @@ export function BookReaderScreen({ bookId, wordsDb, onUpdateWord, settings, onBa
         <div key={currentPage} ref={pageContentRef} className="reader-page-enter h-full overflow-hidden leading-relaxed">
           {renderedContent}
         </div>
+      </div>
+
+      <div className={`flex h-8 shrink-0 items-center justify-center border-t text-[10px] font-mono tabular-nums text-zinc-500 ${themeStyles.headerBg}`}>
+        <span aria-live="polite">Page {currentPage + 1} of {totalPages}</span>
       </div>
 
       {/* Word Interaction Sheet */}
