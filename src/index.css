@@ -41,6 +41,33 @@ html.dark {
   animation: reader-page-enter 180ms ease-out;
 }
 
+.reader-title-track {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.reader-title-text {
+  display: inline-block;
+}
+
+.reader-title-copy {
+  display: none;
+}
+
+.reader-title-track.is-overflowing {
+  display: flex;
+  width: max-content;
+  animation: reader-title-marquee 24s linear infinite;
+}
+
+.reader-title-track.is-overflowing > span {
+  padding-right: 2rem;
+}
+
+.reader-title-track.is-overflowing .reader-title-copy {
+  display: inline-block;
+}
+
 .install-reminder {
   animation: install-reminder-enter 180ms ease-out;
 }
@@ -84,6 +111,11 @@ html.dark {
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes reader-title-marquee {
+  0%, 5% { transform: translateX(0); }
+  90%, 100% { transform: translateX(-50%); }
+}
+
 @keyframes install-reminder-enter {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
@@ -106,6 +138,7 @@ html.dark {
 
 @media (prefers-reduced-motion: reduce) {
   .reader-page-enter,
+  .reader-title-track.is-overflowing,
   .install-reminder,
   .reader-tutorial-enter,
   .reader-tutorial-target::after {

@@ -175,7 +175,7 @@ export function BookListScreen({ onOpenBook, onLibraryLoaded, themeStyles, words
             <div
               key={b.id}
               onClick={() => onOpenBook(b.id)}
-              className={`p-3.5 border rounded-xl cursor-pointer flex items-center gap-3 transition group ${themeStyles.cardBg} ${themeStyles.cardHover}`}
+              className={`p-3.5 border rounded-xl cursor-pointer flex items-center gap-3 shadow-md transition group hover:shadow-lg ${themeStyles.cardBg} ${themeStyles.cardHover}`}
             >
               <img
                 src={b.coverUrl || '/images/default-book-cover.svg'}
@@ -183,14 +183,16 @@ export function BookListScreen({ onOpenBook, onLibraryLoaded, themeStyles, words
                 onError={(event) => { event.currentTarget.src = '/images/default-book-cover.svg'; }}
                 className="h-[5.5rem] w-16 shrink-0 rounded-sm border border-black/10 object-cover shadow-sm"
               />
-              <div className="flex-1 pr-3 min-w-0">
-                <div className="flex items-center gap-2">
-                  <h3 className={`font-medium text-sm truncate group-hover:text-amber-500 ${themeStyles.textPrimary}`}>{b.title}</h3>
-                  {b.pinned && <Pin className="h-3.5 w-3.5 shrink-0 rotate-45 text-amber-500" aria-label="Pinned" />}
-                  {b.hasBeenOpened === false && (
-                    <span className="shrink-0 rounded-sm bg-amber-500 px-1.5 py-0.5 text-[9px] font-bold leading-none text-zinc-950">NEW</span>
-                  )}
-                </div>
+              <div className="flex-1 min-w-0">
+                <h3 className={`break-words font-medium text-sm leading-snug group-hover:text-amber-500 ${themeStyles.textPrimary}`}>{b.title}</h3>
+                {(b.pinned || b.hasBeenOpened === false) && (
+                  <div className="mt-1 flex items-center gap-2">
+                    {b.pinned && <Pin className="h-3.5 w-3.5 shrink-0 rotate-45 text-amber-500" aria-label="Pinned" />}
+                    {b.hasBeenOpened === false && (
+                      <span className="shrink-0 rounded-sm bg-amber-500 px-1.5 py-0.5 text-[9px] font-bold leading-none text-zinc-950">NEW</span>
+                    )}
+                  </div>
+                )}
                 <div className={`flex items-center gap-2 mt-1 text-[11px] ${themeStyles.textMuted}`}>
                   <span>{bookWordCounts[b.id]?.total || 0} words</span>
                   <span>•</span>
