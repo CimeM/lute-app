@@ -50,14 +50,10 @@ The index contains a `version` and a `books` array. Each book has a stable catal
 
 Contributions are welcome. Install [prek](https://prek.j178.dev/) and run `prek install` to enable the lint hook on every commit. Before opening a pull request, test your changes locally and run `pnpm build`. Keep each pull request focused on one feature or fix.
 
-An AI review can help catch issues before submitting. For example, ask:
-
-```text
-Review my changes for correctness, consistency with this repository's coding style. Look for the simplest solution that fits the existing code; avoid unnecessary complexity or unrelated changes. Reccomend improvements and hilight risky problems.
-```
+Use AGENTS.md whn developing with generative models.
 
 ### Reporting Issues, requesting features
-Please use GitHub Issues to report bugs or request features.
+Please use GitHub issues to report bugs or request features.
 
 ### Development
 
