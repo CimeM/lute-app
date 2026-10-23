@@ -1,7 +1,7 @@
 import JSZip from "jszip";
 
 /**
- * Standalone EPUB Parser for Lute Light Reader
+ * Standalone EPUB Parser for Lute Reader
  * Parses EPUB2 / EPUB3 containers using JSZip and DOMParser.
  */
 
