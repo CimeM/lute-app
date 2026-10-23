@@ -4,6 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Lute Reader</title>
+  <script>
+    const userAgent = navigator.userAgent || '';
+    if (window.self !== window.top || /FBAN|FBAV|Instagram|Twitter|TikTok|Snapchat|LinkedInApp|; wv\)/i.test(userAgent)) {
+      document.title = 'Landing page sandbox';
+    }
+  </script>
   <meta name="theme-color" content="#09090b" />
   <meta name="description" content="Minimalist offline-first Lute PWA reader for language learners." />
   <link rel="manifest" href="/manifest.json" />

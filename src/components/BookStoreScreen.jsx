@@ -3,6 +3,24 @@ import { Check, Copy, Download, ExternalLink, Folder, Search, X } from 'lucide-r
 import { db } from '../db/LocalDB';
 import { fetchBookCatalog, getCatalogBookCoverUrl, importCatalogBook } from '../utils/bookCatalog';
 
+const LANGUAGE_FLAGS = {
+  de: '🇩🇪',
+  es: '🇪🇸',
+  fr: '🇫🇷',
+  hr: '🇭🇷',
+  it: '🇮🇹',
+  nl: '🇳🇱',
+  ru: '🇷🇺',
+  sl: '🇸🇮',
+  sk: '🇸🇰',
+  sr: '🇷🇸',
+};
+
+const getLanguageLabel = (code) => {
+  const baseLanguage = code.toLowerCase().split(/[-_]/)[0];
+  return `${LANGUAGE_FLAGS[baseLanguage] || '🌐'} ${code.toUpperCase()}`;
+};
+
 export function BookStoreScreen({ settings, themeStyles, onNotify, onBookAdded, onSaveSettings }) {
   const [catalogs, setCatalogs] = useState([]);
   const [libraryBooks, setLibraryBooks] = useState([]);
@@ -61,6 +79,11 @@ export function BookStoreScreen({ settings, themeStyles, onNotify, onBookAdded, 
     || (savedBook.catalogSource === book.source.url && savedBook.catalogBookId === book.id)
   ));
 
+  const selectLanguage = (storeLanguage) => {
+    setLanguage(storeLanguage);
+    onSaveSettings({ ...settings, storeLanguage });
+  };
+
   const handleAddBook = async (book) => {
     const key = `${book.source.url}:${book.id}`;
     setBusyBook(key);
@@ -93,6 +116,41 @@ export function BookStoreScreen({ settings, themeStyles, onNotify, onBookAdded, 
 
   return (
     <div className="h-full overflow-y-auto p-4">
+      {!loading && !settings.storeLanguage && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-3 sm:items-center">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="store-language-title"
+            className={`max-h-[85dvh] w-full max-w-md overflow-y-auto rounded-lg border p-5 shadow-xl ${themeStyles.cardBg} ${themeStyles.textPrimary}`}
+          >
+            <h2 id="store-language-title" className="text-lg font-semibold">Choose a language</h2>
+            <p className={`mb-4 mt-1 text-sm ${themeStyles.textMuted}`}>
+              Choose which language to browse in the store.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => selectLanguage('all')}
+                className={`col-span-2 rounded-md border px-3 py-2.5 text-left text-sm font-medium ${themeStyles.btnSecondary}`}
+              >
+                🌐 All languages
+              </button>
+              {languages.map((code) => (
+                <button
+                  key={code}
+                  type="button"
+                  onClick={() => selectLanguage(code)}
+                  className={`rounded-md border px-3 py-2.5 text-left text-sm font-medium ${themeStyles.btnSecondary}`}
+                >
+                  {getLanguageLabel(code)}
+                </button>
+              ))}
+            </div>
+          </section>
+        </div>
+      )}
+
       <header className="mb-4 border-b border-zinc-200 pb-3 dark:border-zinc-800">
         <h2 className={`text-lg font-bold ${themeStyles.textPrimary}`}>Book Store</h2>
         <p className={`text-xs ${themeStyles.textMuted}`}>Browse books from your selected sources.</p>
@@ -114,15 +172,11 @@ export function BookStoreScreen({ settings, themeStyles, onNotify, onBookAdded, 
           Material language
           <select
             value={language}
-            onChange={(event) => {
-              const storeLanguage = event.target.value;
-              setLanguage(storeLanguage);
-              onSaveSettings({ ...settings, storeLanguage });
-            }}
+            onChange={(event) => selectLanguage(event.target.value)}
             className={`min-w-0 w-full rounded-md border px-1.5 py-2 text-xs ${themeStyles.inputBg}`}
           >
-            <option value="all">All languages</option>
-            {languages.map((code) => <option key={code} value={code}>{code.toUpperCase()}</option>)}
+            <option value="all">🌐 All languages</option>
+            {languages.map((code) => <option key={code} value={code}>{getLanguageLabel(code)}</option>)}
           </select>
         </label>
       </div>
@@ -189,7 +243,7 @@ export function BookStoreScreen({ settings, themeStyles, onNotify, onBookAdded, 
                                     </button>
                                   </h3>
                                   <p className={`mt-1 text-xs ${themeStyles.textMuted}`}>
-                                    {book.author || 'Unknown author'}{book.language ? ` · ${book.language.toUpperCase()}` : ''}
+                                    {book.author || 'Unknown author'}{book.language ? ` · ${getLanguageLabel(book.language)}` : ''}
                                   </p>
                                 </div>
                                 {book.file && (
@@ -258,7 +312,7 @@ export function BookStoreScreen({ settings, themeStyles, onNotify, onBookAdded, 
               <div className="min-w-0">
                 <h2 id="book-details-title" className="text-lg font-semibold">{selectedBook.title}</h2>
                 <p className={`mt-1 text-sm ${themeStyles.textMuted}`}>
-                  {selectedBook.author || 'Unknown author'}{selectedBook.language ? ` · ${selectedBook.language.toUpperCase()}` : ''}
+                  {selectedBook.author || 'Unknown author'}{selectedBook.language ? ` · ${getLanguageLabel(selectedBook.language)}` : ''}
                 </p>
               </div>
               <button
@@ -282,7 +336,7 @@ export function BookStoreScreen({ settings, themeStyles, onNotify, onBookAdded, 
                 <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
                   <div>
                     <dt className={`font-semibold ${themeStyles.textMuted}`}>Language</dt>
-                    <dd>{selectedBook.language?.toUpperCase() || 'Not specified'}</dd>
+                    <dd>{selectedBook.language ? getLanguageLabel(selectedBook.language) : 'Not specified'}</dd>
                   </div>
                   <div>
                     <dt className={`font-semibold ${themeStyles.textMuted}`}>Source</dt>
