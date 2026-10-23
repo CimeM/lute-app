@@ -53,14 +53,17 @@ export function ExternalBrowserPrompt({
       <div className={`min-h-dvh w-full overflow-y-auto px-5 py-10 sm:px-8 ${themeStyles.bodyBg}`}>
         <main className="mx-auto w-full max-w-5xl">
           <section className="mx-auto flex max-w-2xl flex-col items-center py-8 text-center sm:py-14">
-            <img src="/icons/icon-192.png" alt="Lute" className="mb-5 h-16 w-16 rounded-2xl object-cover shadow-sm" />
-            <h1 className="max-w-xl text-3xl font-bold leading-tight text-zinc-900 dark:text-zinc-100 sm:text-4xl">
+            <img src="/icons/icon-192.png" alt="Lute" className="external-browser-logo-enter mb-5 h-16 w-16 rounded-2xl object-cover shadow-sm" />
+            <p className="external-browser-caption-enter mb-5 text-sm font-semibold text-zinc-700 dark:text-zinc-200">
+              Lute reader
+            </p>
+            <h1 className="external-browser-content-enter max-w-xl text-3xl font-bold leading-tight text-zinc-900 dark:text-zinc-100 sm:text-4xl">
               Your next language, one good read away.
             </h1>
-            <p className="mt-4 max-w-lg text-base leading-relaxed text-zinc-600 dark:text-zinc-300">
+            <p className="external-browser-content-enter mt-4 max-w-lg text-base leading-relaxed text-zinc-600 dark:text-zinc-300">
               Build confidence with stories at your level and useful new words, whether you are learning for fun or getting ready to travel.
             </p>
-            <div className="mt-7 flex w-full max-w-sm flex-col gap-3">
+            <div className="external-browser-content-enter mt-7 flex w-full max-w-sm flex-col gap-3">
               <a
                 href={openInBrowserHref}
                 target={isAndroid ? undefined : '_blank'}
@@ -81,7 +84,7 @@ export function ExternalBrowserPrompt({
             </div>
           </section>
 
-          <section className="border-t border-zinc-200 py-9 dark:border-zinc-800 sm:py-12">
+          <section className="external-browser-content-enter border-t border-zinc-200 py-9 dark:border-zinc-800 sm:py-12">
             <h2 className="text-center text-xl font-semibold text-zinc-900 dark:text-zinc-100">
               Join thousands of language learners
             </h2>

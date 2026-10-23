@@ -130,6 +130,10 @@ export default function App() {
   const shouldShowExternalBrowserPrompt = installEnvironment.isEmbedded || forceBrowserPrompt;
 
   useEffect(() => {
+    document.title = shouldShowExternalBrowserPrompt ? 'Landing page sandbox' : 'Lute Reader';
+  }, [shouldShowExternalBrowserPrompt]);
+
+  useEffect(() => {
     if (!settings || shouldShowExternalBrowserPrompt || !isFirstAppOpen) return;
     try {
       localStorage.setItem(APP_OPENED_KEY, 'true');
