@@ -556,7 +556,7 @@ export function BookReaderScreen({ bookId, wordsDb, onUpdateWord, settings, onBa
 
       {/* Word Interaction Sheet */}
       {selectedWord && (
-        <div className={`fixed left-4 right-4 z-30 p-4 border rounded-xl shadow-2xl transition ${themeStyles.modalBg} ${popupPosition === 'top' ? 'top-16' : 'bottom-16'}`}>
+        <div className={`fixed left-2 right-2 z-30 p-5 border rounded-xl shadow-2xl transition ${themeStyles.modalBg} ${popupPosition === 'top' ? 'top-16' : 'bottom-16'}`}>
           <div className="flex items-center justify-between mb-2">
             <span className="font-bold text-lg capitalize">{selectedWord.text}</span>
             <div className="flex items-center gap-1">
