@@ -267,7 +267,7 @@ export function BookStoreScreen({ settings, themeStyles, onNotify, onBookAdded, 
                                     className="inline-flex items-center gap-1.5 rounded-md bg-amber-500 px-3 py-1.5 text-xs font-semibold text-zinc-950 transition hover:bg-amber-400 disabled:cursor-default disabled:opacity-60"
                                   >
                                     {added ? <Check className="h-3.5 w-3.5" /> : <Download className="h-3.5 w-3.5" />}
-                                    {added ? 'In Library' : busyBook === key ? 'Adding...' : book.purchaseUrl ? 'Download preview' : 'Add to Library'}
+                                    {added ? 'In Library' : busyBook === key ? 'Adding...' : book.purchaseUrl ? 'Get preview' : 'Add to Library'}
                                   </button>
                                 )}
                                 {book.purchaseUrl && (
@@ -277,7 +277,7 @@ export function BookStoreScreen({ settings, themeStyles, onNotify, onBookAdded, 
                                     rel="noreferrer"
                                     className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium ${themeStyles.btnSecondary}`}
                                   >
-                                    {book.file ? 'Purchase' : 'View / purchase'}
+                                    {book.file ? book.price? book.price + '€' : 'Purchase' : 'View / purchase'}
                                     <ExternalLink className="h-3.5 w-3.5" />
                                   </a>
                                 )}

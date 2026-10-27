@@ -31,7 +31,8 @@ The index contains a `version` and a `books` array. Each book has a stable catal
 			"description": "A short description of the book.",
 			"language": "en",
 			"file": "sample-book.md",
-			"purchaseUrl": "https://example.com/books/sample-book"
+			"purchaseUrl": "https://example.com/books/sample-book",
+			"price": 0
 		}
 	]
 }

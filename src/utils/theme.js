@@ -67,14 +67,14 @@ export function getThemeStyles(theme) {
     navBg: 'bg-zinc-950 border-zinc-800',
     navActive: 'text-amber-400 bg-zinc-800/60',
     navInactive: 'text-zinc-500 hover:text-zinc-300',
-    cardBg: 'bg-zinc-950/60 border-zinc-800/80 text-zinc-200',
+    cardBg: 'bg-zinc-950 border-zinc-800/80 text-zinc-200',
     cardHover: 'hover:border-zinc-700',
     textPrimary: 'text-zinc-100',
     textMuted: 'text-zinc-400',
     textSubtle: 'text-zinc-500',
     inputBg: 'bg-zinc-900 border-zinc-800 text-zinc-200 focus:border-amber-500',
     btnSecondary: 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300',
-    modalBg: 'bg-zinc-950/95 border-zinc-800 text-zinc-100',
+    modalBg: 'bg-zinc-950 border-zinc-800 text-zinc-100',
     statusBadge: 'bg-zinc-800 text-zinc-400 border-zinc-700',
   };
 }
