@@ -275,9 +275,9 @@ export function BookStoreScreen({ settings, themeStyles, onNotify, onBookAdded, 
                                     href={book.purchaseUrl}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium ${themeStyles.btnSecondary}`}
+                                    className={`inline-flex items-center gap-1.5 bg-amber-500 rounded-md border px-3 py-1.5 text-xs font-medium ${themeStyles.btnSecondary}`}
                                   >
-                                    {book.file ? book.price? book.price + '€' : 'Purchase' : 'View / purchase'}
+                                    {book.file ? book.price? book.price.toFixed(2) + '€' : 'Purchase' : 'View / purchase'}
                                     <ExternalLink className="h-3.5 w-3.5" />
                                   </a>
                                 )}
